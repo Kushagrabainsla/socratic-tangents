@@ -15,5 +15,6 @@ export class ChatGPTAdapter extends BaseDomAdapter {
     composer: ['#prompt-textarea', 'div[contenteditable="true"]', 'textarea'],
     sendButton: ['[data-testid="send-button"]', 'button[aria-label*="Send" i]'],
     streaming: ['[data-testid="stop-button"]', 'button[aria-label*="Stop" i]'],
+    conversationPath: /\/c\/([0-9a-f-]+)/i,
   };
 }

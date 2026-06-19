@@ -4,11 +4,11 @@ Two workflows, split only by what they need:
 
 | Workflow | Trigger | Needs secrets? | Does |
 |---|---|---|---|
-| [`ci.yml`](../.github/workflows/ci.yml) | every push to `main` + PRs | no | typecheck + build (Chrome + Firefox) — fast "does it build?" feedback |
+| [`ci.yml`](../.github/workflows/ci.yml) | every push to `main` + PRs | no | typecheck + build (Chrome + Firefox). Fast "does it build?" feedback |
 | [`release.yml`](../.github/workflows/release.yml) | push a `v*` tag | optional | build, create a GitHub Release with the zips, **and submit to every store you've configured** |
 
 CI is separate on purpose: it runs constantly and must never touch release logic or store
-credentials. Everything that *ships* lives in one place — `release.yml` — triggered intentionally by
+credentials. Everything that *ships* lives in one place, `release.yml`, triggered intentionally by
 a version tag. Each store step **auto-skips** until its secrets exist, so releasing works on day one
 (GitHub Release only) and turns into store publishing as you add credentials.
 
@@ -29,12 +29,12 @@ One-time **$5** developer registration. Create the item by uploading a first zip
 **extension ID**, then create Web Store API OAuth credentials + a refresh token.
 - `CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`
 
-### Microsoft Edge Add-ons — **free**
+### Microsoft Edge Add-ons (**free**)
 Edge is Chromium, so it ships the *same* Chrome zip. Register (free) in Partner Center, create the
 item to get the **product ID**, and create API credentials.
 - `EDGE_PRODUCT_ID`, `EDGE_CLIENT_ID`, `EDGE_API_KEY`
 
-### Firefox Add-ons (AMO) — **free**
+### Firefox Add-ons / AMO (**free**)
 Create AMO API credentials (JWT issuer + secret).
 - `FIREFOX_EXTENSION_ID`, `FIREFOX_JWT_ISSUER`, `FIREFOX_JWT_SECRET`
 
@@ -51,7 +51,7 @@ submission, if you prefer not to list publicly.)
 
 Store review takes hours to days, and an extension that interacts with a site like ChatGPT can draw
 extra scrutiny. We keep `host_permissions` minimal and ship no background/remote code, which helps.
-Have a privacy policy ready. See the ToS/store notes in [RESEARCH-FINDINGS.md](RESEARCH-FINDINGS.md).
+Have a privacy policy ready before you submit.
 
 ## Local equivalents
 

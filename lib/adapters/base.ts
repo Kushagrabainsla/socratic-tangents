@@ -1,6 +1,9 @@
 import { hostMatches, pick, sleep } from '../tangent/dom';
 import type { LLMAdapter } from './types';
 
+/** How long to wait after inserting text before the framework enables the send button. */
+const COMPOSER_SETTLE_MS = 150;
+
 /** The provider-specific selectors a DOM adapter needs. Add a provider by filling these in. */
 export interface AdapterSelectors {
   /** An assistant reply element. */
@@ -19,6 +22,8 @@ export interface AdapterSelectors {
   sendButton: string[];
   /** Selectors that exist only while the model is generating. */
   streaming: string[];
+  /** Captures the conversation id from `location.pathname` in group 1. */
+  conversationPath: RegExp;
 }
 
 /**
@@ -77,27 +82,44 @@ export abstract class BaseDomAdapter implements LLMAdapter {
     return this.selectors.streaming.some((s) => document.querySelector(s) != null);
   }
 
+  conversationId(): string {
+    return location.pathname.match(this.selectors.conversationPath)?.[1] ?? '';
+  }
+
+  findMessageById(id: string): HTMLElement | null {
+    if (!this.selectors.messageIdAttr || !id) return null;
+    return document.querySelector<HTMLElement>(`[${this.selectors.messageIdAttr}="${CSS.escape(id)}"]`);
+  }
+
   async send(text: string): Promise<void> {
     const composer = pick(document, this.selectors.composer);
     if (!composer) throw new Error(`${this.name}: composer not found (selectors may have changed)`);
     composer.focus();
+    this.insertText(composer, text);
+    await sleep(COMPOSER_SETTLE_MS);
+    this.submit(composer);
+  }
 
+  /** Put `text` into the composer. Override if a provider needs a different input method. */
+  protected insertText(composer: HTMLElement, text: string): void {
     if (composer instanceof HTMLTextAreaElement) {
       // React-controlled textarea: use the native value setter, then fire input.
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-      setter?.call(composer, text);
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setValue?.call(composer, text);
       composer.dispatchEvent(new Event('input', { bubbles: true }));
-    } else {
-      // contenteditable (ProseMirror): a synthetic paste is the most reliable insert.
-      const dt = new DataTransfer();
-      dt.setData('text/plain', text);
-      composer.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      return;
     }
+    // contenteditable (ProseMirror): a synthetic paste is the most reliable insert.
+    const data = new DataTransfer();
+    data.setData('text/plain', text);
+    composer.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }
 
-    await sleep(150); // let the framework enable the send button
-    const btn = pick(document, this.selectors.sendButton) as HTMLButtonElement | null;
-    if (btn && !btn.disabled) {
-      btn.click();
+  /** Submit the composer via its send button, falling back to the Enter key. */
+  protected submit(composer: HTMLElement): void {
+    const button = pick(document, this.selectors.sendButton) as HTMLButtonElement | null;
+    if (button && !button.disabled) {
+      button.click();
       return;
     }
     composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));

@@ -1,10 +1,11 @@
 import type { LLMAdapter } from '../adapters/types';
-import { openBubble } from './bubble';
 import { isDark } from './theme';
 
-/** Show a "↳ Tangent" affordance when text is selected inside an assistant reply, and open a
- *  bubble on click. Provider-agnostic — the adapter decides what counts as an assistant message. */
-export function initSelection(adapter: LLMAdapter): void {
+export type CreateTangent = (passage: string, msgEl: HTMLElement, rect: DOMRect) => void;
+
+/** Show a "↳ Tangent" affordance when text is selected inside an assistant reply, and call
+ *  `onCreate` on click. Provider-agnostic: the adapter decides what counts as an assistant message. */
+export function initSelection(adapter: LLMAdapter, onCreate: CreateTangent): void {
   const btn = document.createElement('button');
   btn.className = 'st-tangent-btn';
   btn.textContent = '↳ Tangent';
@@ -37,7 +38,7 @@ export function initSelection(adapter: LLMAdapter): void {
     if (!pending) return;
     const sel = window.getSelection();
     const rect = sel && sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : pending.msgEl.getBoundingClientRect();
-    openBubble(adapter, pending.text, pending.msgEl, rect);
+    onCreate(pending.text, pending.msgEl, rect);
     window.getSelection()?.removeAllRanges();
     hide();
   });

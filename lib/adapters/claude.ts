@@ -1,7 +1,7 @@
 import { BaseDomAdapter, type AdapterSelectors } from './base';
 
 /**
- * Claude (claude.ai). Best-effort selectors — Claude exposes fewer stable hooks than ChatGPT and
+ * Claude (claude.ai). Best-effort selectors. Claude exposes fewer stable hooks than ChatGPT and
  * has no per-message id attribute (we fall back to synthetic ids). Expect to tune these against the
  * live DOM, exactly as we did for ChatGPT; nothing else in the codebase needs to change.
  */
@@ -19,5 +19,6 @@ export class ClaudeAdapter extends BaseDomAdapter {
     composer: ['div[contenteditable="true"].ProseMirror', 'div[contenteditable="true"]', 'textarea'],
     sendButton: ['button[aria-label="Send message" i]', 'button[aria-label*="Send" i]'],
     streaming: ['[data-is-streaming="true"]', 'button[aria-label*="Stop" i]'],
+    conversationPath: /\/chat\/([0-9a-f-]+)/i,
   };
 }

@@ -1,9 +1,9 @@
 # Architecture
 
 Socratic Tangents is a single Manifest V3 **content script** that runs in the page's ISOLATED
-world. It does not forge API requests (ChatGPT's anti-abuse blocks that — see
-[RESEARCH-FINDINGS.md](RESEARCH-FINDINGS.md)); instead it **drives the site's own composer**, so the
-page runs its real pipeline and there's no account risk.
+world. It does not forge API requests (ChatGPT guards sends with single-use tokens and device-level
+detection, so forging them is brittle and risks the user's account); instead it **drives the site's
+own composer**, so the page runs its real pipeline and there's no account risk.
 
 ## Layout
 
@@ -13,7 +13,7 @@ entrypoints/
 lib/
   adapters/                # everything provider-specific lives here
     types.ts               #   LLMAdapter interface
-    base.ts                #   BaseDomAdapter — all behaviour, driven by selectors
+    base.ts                #   BaseDomAdapter: all behaviour, driven by selectors
     chatgpt.ts             #   ChatGPTAdapter (selectors only)
     claude.ts              #   ClaudeAdapter  (selectors only)
     registry.ts            #   the adapter list + host → adapter, + manifest match patterns
@@ -43,7 +43,7 @@ adapter behaviour is shared in `BaseDomAdapter`; adapters supply only selectors)
 
 ## Add a new LLM
 
-Usually three small steps — no changes to the engine or UI:
+Usually three small steps, with no changes to the engine or UI:
 
 1. **Create an adapter** in `lib/adapters/<name>.ts` extending `BaseDomAdapter`, filling in
    `id`, `name`, `hostPatterns`, and `selectors`:
@@ -72,7 +72,7 @@ Usually three small steps — no changes to the engine or UI:
    and `host_permissions` follow automatically.
 
 3. **Allow the host** in [wxt.config.ts](../wxt.config.ts) `host_permissions`, then tune the
-   selectors against the live DOM (expect a round or two — provider DOMs are undocumented).
+   selectors against the live DOM (expect a round or two, since provider DOMs are undocumented).
 
 If a provider is unusual (e.g. a non-standard composer), override the relevant method in your
 adapter instead of changing the core.

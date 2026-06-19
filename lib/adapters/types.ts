@@ -1,6 +1,6 @@
 // A provider adapter encapsulates EVERYTHING DOM-specific about one LLM web app.
 // The tangent engine and UI are written purely against this interface, so adding a new LLM
-// means implementing this once (usually via BaseDomAdapter) and registering it — no core changes.
+// means implementing this once (usually via BaseDomAdapter) and registering it. No core changes.
 export interface LLMAdapter {
   readonly id: string;
   readonly name: string;
@@ -25,4 +25,9 @@ export interface LLMAdapter {
   send(text: string): Promise<void>;
   /** Whether the model is currently generating. */
   isStreaming(): boolean;
+
+  /** Id of the current conversation from the URL, or '' if there isn't one yet. */
+  conversationId(): string;
+  /** Find a message element by its stable id, or null if the provider has no stable ids. */
+  findMessageById(id: string): HTMLElement | null;
 }

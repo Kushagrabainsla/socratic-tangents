@@ -14,7 +14,7 @@ export function composePrompt(passage: string, question: string): string {
 /**
  * Ask a tangent question and return the clean answer node. The send goes through the provider's
  * own composer (so it handles anti-abuse); the resulting turns are hidden from the main thread so
- * it stays visually untouched. Provider-agnostic — works for any LLMAdapter.
+ * it stays visually untouched. Provider-agnostic: works for any LLMAdapter.
  */
 export async function askTangent(adapter: LLMAdapter, passage: string, question: string): Promise<HTMLElement> {
   const before = currentMessageIds(adapter);

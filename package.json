@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "version": "0.0.0",
+  "license": "MIT",
+  "author": "Kushagra Bainsla",
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
