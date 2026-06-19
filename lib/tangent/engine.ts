@@ -16,12 +16,17 @@ export function composePrompt(passage: string, question: string): string {
  * own composer (so it handles anti-abuse); the resulting turns are hidden from the main thread so
  * it stays visually untouched. Provider-agnostic: works for any LLMAdapter.
  */
-export async function askTangent(adapter: LLMAdapter, passage: string, question: string): Promise<HTMLElement> {
+export async function askTangent(
+  adapter: LLMAdapter,
+  passage: string,
+  question: string,
+  onProgress?: (text: string) => void,
+): Promise<HTMLElement> {
   const before = currentMessageIds(adapter);
   const hideObserver = hideNewTurns(adapter, before);
   try {
     await adapter.send(composePrompt(passage, question));
-    const answerNode = await waitForAnswer(adapter, before);
+    const answerNode = await waitForAnswer(adapter, before, onProgress);
     return adapter.cleanAnswer(answerNode);
   } finally {
     hideObserver.disconnect();
@@ -45,8 +50,14 @@ function hideNewTurns(adapter: LLMAdapter, before: Set<string>): MutationObserve
   return observer;
 }
 
-/** Wait for a new assistant message to appear and finish streaming; return its element. */
-async function waitForAnswer(adapter: LLMAdapter, before: Set<string>, timeoutMs = ANSWER_TIMEOUT_MS): Promise<HTMLElement> {
+/** Wait for a new assistant message to appear and finish streaming; return its element.
+ *  `onProgress` is called with the growing text so callers can stream it live. */
+async function waitForAnswer(
+  adapter: LLMAdapter,
+  before: Set<string>,
+  onProgress?: (text: string) => void,
+  timeoutMs = ANSWER_TIMEOUT_MS,
+): Promise<HTMLElement> {
   const start = Date.now();
   let lastText = '';
   let stableSince = 0;
@@ -57,6 +68,7 @@ async function waitForAnswer(adapter: LLMAdapter, before: Set<string>, timeoutMs
     const target = fresh[fresh.length - 1];
     // Hidden nodes report '' from innerText, so use textContent for stability checks.
     const text = target ? (target.textContent ?? '').trim() : '';
+    if (text && text !== lastText) onProgress?.(text);
     if (target && text && !adapter.isStreaming() && text === lastText) {
       if (!stableSince) stableSince = Date.now();
       else if (Date.now() - stableSince > STABLE_MS) return target;

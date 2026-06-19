@@ -34,10 +34,18 @@ const CSS = `
 .st-card.st-min .st-composer{display:none}
 .st-card.st-min .st-card-head{margin:0}
 
-.st-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.st-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:move;user-select:none}
 .st-card-label{font-size:12px;font-weight:600;opacity:.6}
-.st-card-close{background:none;border:none;cursor:pointer;color:inherit;opacity:.5;font-size:13px}
-.st-card-close:hover{opacity:1}
+.st-card-actions{display:flex;gap:2px}
+.st-icon{background:none;border:none;cursor:pointer;color:inherit;opacity:.5;font-size:13px;line-height:1;padding:3px 5px;border-radius:6px}
+.st-icon:hover{opacity:1;background:color-mix(in srgb, currentColor 12%, transparent)}
+.st-icon:disabled{opacity:.2;cursor:default}
+.st-send.st-stop{background:#d33!important;color:#fff!important}
+.st-answer-actions{margin-top:6px}
+.st-mini{border:none;background:none;color:inherit;opacity:.5;cursor:pointer;font:12px ui-sans-serif,system-ui,sans-serif;padding:2px 6px;border-radius:6px}
+.st-mini:hover{opacity:1;background:color-mix(in srgb, currentColor 12%, transparent)}
+.st-launcher-row{display:flex;align-items:center;gap:4px}
+.st-launcher-row .st-list-item{flex:1 1 auto}
 .st-quote{border-left:2px solid currentColor;opacity:.55;padding-left:10px;margin-bottom:12px;
   font-size:13px;line-height:1.5;max-height:96px;overflow:auto}
 .st-thread{display:flex;flex-direction:column;gap:12px;margin-bottom:12px;flex:1 1 auto;

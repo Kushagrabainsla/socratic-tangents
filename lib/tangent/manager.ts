@@ -2,11 +2,13 @@ import type { LLMAdapter } from '../adapters/types';
 import { createAnchor, resolveAnchor } from './anchor';
 import { openBubble } from './bubble';
 import { Launcher } from './launcher';
-import { clearMarkers, renderMarkers } from './markers';
+import { clearMarkers, ensureMarkers, renderMarkers } from './markers';
 import { newId, type Tangent } from './model';
 import { onUrlChange } from './nav';
 import { initSelection } from './selection';
-import { listByConversation, onTangentsChanged, saveTangent } from './store';
+import { listByConversation, onTangentsChanged, removeTangent, saveTangent } from './store';
+
+const REATTACH_THROTTLE_MS = 400;
 
 /**
  * Owns tangents for the active conversation: loads and persists them, renders markers and the
@@ -19,7 +21,10 @@ export class TangentManager {
 
   constructor(private readonly adapter: LLMAdapter) {
     this.conversationId = adapter.conversationId();
-    this.launcher = new Launcher((id) => this.reopen(id));
+    this.launcher = new Launcher(
+      (id) => this.reopen(id),
+      (id) => void this.delete(id),
+    );
   }
 
   async start(): Promise<void> {
@@ -27,6 +32,7 @@ export class TangentManager {
     initSelection(this.adapter, (passage, msgEl, rect) => this.create(passage, msgEl, rect));
     onUrlChange(() => void this.handleNavigation());
     onTangentsChanged(() => void this.reload());
+    this.watchReRenders();
   }
 
   private async reload(): Promise<void> {
@@ -34,10 +40,36 @@ export class TangentManager {
     this.renderAll();
   }
 
+  private get visibleTangents(): Tangent[] {
+    return this.tangents.filter((t) => t.messages.length > 0);
+  }
+
   private renderAll(): void {
-    const withMessages = this.tangents.filter((t) => t.messages.length > 0);
-    renderMarkers(this.adapter, withMessages, (id) => this.reopen(id));
-    this.launcher.render(withMessages);
+    renderMarkers(this.adapter, this.visibleTangents, (id) => this.reopen(id));
+    this.launcher.render(this.visibleTangents);
+  }
+
+  /** Re-attach markers after the page virtualizes/re-renders messages on scroll. */
+  private watchReRenders(): void {
+    let scheduled = 0;
+    document.addEventListener(
+      'scroll',
+      () => {
+        if (scheduled) return;
+        scheduled = window.setTimeout(() => {
+          scheduled = 0;
+          ensureMarkers(this.adapter, this.visibleTangents, (id) => this.reopen(id));
+        }, REATTACH_THROTTLE_MS);
+      },
+      true,
+    );
+  }
+
+  private async delete(id: string): Promise<void> {
+    await removeTangent(id);
+    this.tangents = this.tangents.filter((t) => t.id !== id);
+    document.querySelector(`.st-card[data-tangent-id="${id}"]`)?.remove();
+    this.renderAll();
   }
 
   private create(passage: string, msgEl: HTMLElement, rect: DOMRect): void {
@@ -71,6 +103,7 @@ export class TangentManager {
       msgEl,
       rect,
       onUpdate: (t) => void this.persist(t),
+      onDelete: (id) => void this.delete(id),
     });
   }
 

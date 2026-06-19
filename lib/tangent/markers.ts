@@ -14,11 +14,23 @@ export function clearMarkers(): void {
   document.querySelectorAll(`.${MARKER_CLASS}, .${MENU_CLASS}`).forEach((n) => n.remove());
 }
 
+/** Rebuild all markers from scratch (use when the tangent list changes). */
 export function renderMarkers(adapter: LLMAdapter, tangents: Tangent[], onOpen: OpenTangent): void {
   clearMarkers();
+  ensureMarkers(adapter, tangents, onOpen);
+}
+
+/** Add markers only where missing (use after the page re-renders messages on scroll). */
+export function ensureMarkers(adapter: LLMAdapter, tangents: Tangent[], onOpen: OpenTangent): void {
   for (const [msgEl, group] of groupByMessage(adapter, tangents)) {
-    addMarker(msgEl, group, onOpen);
+    const existing = msgEl.querySelector<HTMLElement>(`.${MARKER_CLASS}`);
+    if (existing) existing.textContent = label(group.length);
+    else addMarker(msgEl, group, onOpen);
   }
+}
+
+function label(count: number): string {
+  return count > 1 ? `↳ ${count}` : '↳';
 }
 
 function groupByMessage(adapter: LLMAdapter, tangents: Tangent[]): Map<HTMLElement, Tangent[]> {
@@ -37,7 +49,7 @@ function addMarker(msgEl: HTMLElement, tangents: Tangent[], onOpen: OpenTangent)
   if (getComputedStyle(msgEl).position === 'static') msgEl.style.position = 'relative';
   const marker = document.createElement('button');
   marker.className = MARKER_CLASS;
-  marker.textContent = tangents.length > 1 ? `↳ ${tangents.length}` : '↳';
+  marker.textContent = label(tangents.length);
   marker.title = tangents.length > 1 ? `${tangents.length} tangents` : 'Open tangent';
   marker.addEventListener('click', (e) => {
     e.stopPropagation();

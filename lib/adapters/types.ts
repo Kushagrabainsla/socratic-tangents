@@ -25,6 +25,8 @@ export interface LLMAdapter {
   send(text: string): Promise<void>;
   /** Whether the model is currently generating. */
   isStreaming(): boolean;
+  /** Stop the current generation (clicks the site's stop control). */
+  stop(): void;
 
   /** Id of the current conversation from the URL, or '' if there isn't one yet. */
   conversationId(): string;

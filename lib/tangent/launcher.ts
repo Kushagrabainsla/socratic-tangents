@@ -1,6 +1,8 @@
 import type { Tangent } from './model';
 import type { OpenTangent } from './markers';
 
+export type DeleteTangent = (id: string) => void;
+
 // A floating button listing every tangent in the current conversation, so none get lost. Hidden
 // when there are no tangents.
 export class Launcher {
@@ -8,7 +10,10 @@ export class Launcher {
   private readonly panel: HTMLDivElement;
   private tangents: Tangent[] = [];
 
-  constructor(private readonly onOpen: OpenTangent) {
+  constructor(
+    private readonly onOpen: OpenTangent,
+    private readonly onDelete: DeleteTangent,
+  ) {
     this.button = document.createElement('button');
     this.button.className = 'st-launcher';
     this.button.title = 'Tangents in this chat';
@@ -34,15 +39,26 @@ export class Launcher {
     this.panel.replaceChildren(...this.tangents.map((tangent) => this.itemFor(tangent)));
   }
 
-  private itemFor(tangent: Tangent): HTMLButtonElement {
-    const item = document.createElement('button');
-    item.className = 'st-list-item';
-    item.textContent = tangent.title || 'Untitled tangent';
-    item.addEventListener('click', () => {
+  private itemFor(tangent: Tangent): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className = 'st-launcher-row';
+
+    const open = document.createElement('button');
+    open.className = 'st-list-item';
+    open.textContent = tangent.title || 'Untitled tangent';
+    open.addEventListener('click', () => {
       this.hide();
       this.onOpen(tangent.id);
     });
-    return item;
+
+    const del = document.createElement('button');
+    del.className = 'st-icon st-row-del';
+    del.title = 'Delete tangent';
+    del.textContent = '🗑';
+    del.addEventListener('click', () => this.onDelete(tangent.id));
+
+    row.append(open, del);
+    return row;
   }
 
   private toggle(): void {

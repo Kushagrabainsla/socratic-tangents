@@ -82,6 +82,10 @@ export abstract class BaseDomAdapter implements LLMAdapter {
     return this.selectors.streaming.some((s) => document.querySelector(s) != null);
   }
 
+  stop(): void {
+    (pick(document, this.selectors.streaming) as HTMLButtonElement | null)?.click();
+  }
+
   conversationId(): string {
     return location.pathname.match(this.selectors.conversationPath)?.[1] ?? '';
   }

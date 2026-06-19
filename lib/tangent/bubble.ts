@@ -4,13 +4,19 @@ import { titleFrom, type Tangent } from './model';
 import { isDark } from './theme';
 
 const MAX_WIDTH = 420;
+const MARGIN = 12;
 const REFOCUS_DELAY_MS = 350;
+const COPIED_RESET_MS = 1200;
 const ANCHORED_CLASS = 'st-anchored';
 
 const CARD_TEMPLATE = `
   <div class="st-card-head">
     <span class="st-card-label">↳ Tangent</span>
-    <button class="st-card-close" title="Close tangent">✕</button>
+    <div class="st-card-actions">
+      <button class="st-icon st-regen" title="Regenerate last answer">↻</button>
+      <button class="st-icon st-del" title="Delete tangent">🗑</button>
+      <button class="st-icon st-card-close" title="Close">✕</button>
+    </div>
   </div>
   <div class="st-quote"></div>
   <div class="st-thread"></div>
@@ -24,15 +30,28 @@ export interface BubbleParams {
   tangent: Tangent;
   msgEl: HTMLElement;
   rect: DOMRect;
-  /** Persist the tangent after each exchange. */
   onUpdate: (tangent: Tangent) => void;
+  onDelete: (id: string) => void;
+}
+
+interface Pin {
+  active: boolean;
+  left: number;
+  top: number;
+}
+
+interface Session {
+  generating: boolean;
+  lastQuestion: string;
+  lastAnswer: HTMLElement | null;
 }
 
 /**
- * Open a floating "thought bubble" anchored to `msgEl`. Restores any saved messages, tracks the
- * passage as the page scrolls, collapses to a side pill when off-screen, and persists each exchange.
+ * Open a floating thought bubble for a tangent. Restores saved messages, tracks the passage,
+ * collapses to a side pill when off-screen, streams answers live, and persists each exchange.
  */
-export function openBubble({ adapter, tangent, msgEl, rect, onUpdate }: BubbleParams): void {
+export function openBubble(params: BubbleParams): void {
+  const { tangent, msgEl, rect } = params;
   const already = document.querySelector<HTMLElement>(`.st-card[data-tangent-id="${tangent.id}"]`);
   if (already) {
     focusInput(already);
@@ -43,16 +62,22 @@ export function openBubble({ adapter, tangent, msgEl, rect, onUpdate }: BubblePa
   document.body.appendChild(card);
   msgEl.classList.add(ANCHORED_CLASS);
 
+  const pin: Pin = { active: false, left: 0, top: 0 };
+  const session: Session = { generating: false, lastQuestion: '', lastAnswer: null };
   const thread = card.querySelector('.st-thread') as HTMLElement;
-  tangent.messages.forEach((m) => appendMessage(thread, m.role, m.text));
+  restore(thread, tangent, session);
 
-  const stopTracking = trackToPassage(card, msgEl, rect);
-  wireClose(card, () => {
+  const stopTracking = trackToPassage(card, msgEl, rect, pin);
+  const close = () => {
     stopTracking();
     msgEl.classList.remove(ANCHORED_CLASS);
-  });
+    card.remove();
+  };
+
+  wireHeader(card, params, pin, close);
   wirePillExpand(card, msgEl);
-  wireComposer(card, { adapter, tangent, msgEl, onUpdate });
+  wireKeyboard(card, close);
+  wireComposer(card, { ...params, thread, session });
   focusInput(card);
 }
 
@@ -66,9 +91,63 @@ function createCard(tangent: Tangent): HTMLElement {
   return card;
 }
 
-// ── tracking ─────────────────────────────────────────────────────────────
-// Hosts scroll an inner container (window.scrollY stays 0), so we follow the message element's
-// live viewport rect each frame and collapse to a side pill when it leaves the screen.
+function restore(thread: HTMLElement, tangent: Tangent, session: Session): void {
+  for (const message of tangent.messages) {
+    const bubble = appendMessage(thread, message.role, message.text);
+    if (message.role === 'user') {
+      session.lastQuestion = message.text;
+    } else {
+      addAnswerActions(bubble, message.text);
+      session.lastAnswer = bubble;
+    }
+  }
+}
+
+// ── header: drag, regenerate, delete, close ────────────────────────────────
+
+function wireHeader(card: HTMLElement, params: BubbleParams, pin: Pin, close: () => void): void {
+  const head = card.querySelector('.st-card-head') as HTMLElement;
+  enableDrag(head, card, pin);
+
+  card.querySelector('.st-card-close')!.addEventListener('click', (e) => {
+    e.stopPropagation();
+    close();
+  });
+  card.querySelector('.st-del')!.addEventListener('click', (e) => {
+    e.stopPropagation();
+    params.onDelete(params.tangent.id);
+    close();
+  });
+}
+
+function enableDrag(handle: HTMLElement, card: HTMLElement, pin: Pin): void {
+  handle.addEventListener('mousedown', (e) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    const rect = card.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    pin.active = true;
+    const move = (ev: MouseEvent) => {
+      pin.left = ev.clientX - offsetX;
+      pin.top = ev.clientY - offsetY;
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+function wireKeyboard(card: HTMLElement, close: () => void): void {
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+}
+
+// ── tracking ───────────────────────────────────────────────────────────────
 
 interface Anchor {
   offsetX: number;
@@ -76,7 +155,7 @@ interface Anchor {
   width: number;
 }
 
-function trackToPassage(card: HTMLElement, msgEl: HTMLElement, rect: DOMRect): () => void {
+function trackToPassage(card: HTMLElement, msgEl: HTMLElement, rect: DOMRect, pin: Pin): () => void {
   const origin = msgEl.getBoundingClientRect();
   const anchor: Anchor = {
     offsetX: rect.left - origin.left,
@@ -86,7 +165,7 @@ function trackToPassage(card: HTMLElement, msgEl: HTMLElement, rect: DOMRect): (
   let running = true;
   const step = () => {
     if (!running) return;
-    placeCard(card, msgEl, anchor);
+    placeCard(card, msgEl, anchor, pin);
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -95,14 +174,20 @@ function trackToPassage(card: HTMLElement, msgEl: HTMLElement, rect: DOMRect): (
   };
 }
 
-function placeCard(card: HTMLElement, msgEl: HTMLElement, anchor: Anchor): void {
+function placeCard(card: HTMLElement, msgEl: HTMLElement, anchor: Anchor, pin: Pin): void {
+  if (pin.active) {
+    card.classList.remove('st-min');
+    card.style.width = `${anchor.width}px`;
+    card.style.left = `${clampLeft(pin.left, anchor.width)}px`;
+    card.style.top = `${clampTop(pin.top, card.offsetHeight)}px`;
+    return;
+  }
   const m = msgEl.getBoundingClientRect();
   const desiredTop = m.top + anchor.offsetY;
   if (isOnScreen(desiredTop, m)) {
     card.classList.remove('st-min');
     card.style.width = `${anchor.width}px`;
     card.style.left = `${clampLeft(m.left + anchor.offsetX, anchor.width)}px`;
-    // Keep the whole bubble on screen even when it is tall or near the bottom edge.
     card.style.top = `${clampTop(desiredTop, card.offsetHeight)}px`;
   } else {
     card.classList.add('st-min');
@@ -116,8 +201,6 @@ function isOnScreen(top: number, m: DOMRect): boolean {
   return top > 8 && top < window.innerHeight - 80 && m.bottom > 0 && m.top < window.innerHeight;
 }
 
-const MARGIN = 12;
-
 function clampLeft(left: number, width: number): number {
   return Math.max(MARGIN, Math.min(left, window.innerWidth - width - MARGIN));
 }
@@ -130,77 +213,114 @@ function scrollToPassage(msgEl: HTMLElement): void {
   msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// ── wiring ───────────────────────────────────────────────────────────────
-
-function wireClose(card: HTMLElement, onClose: () => void): void {
-  card.querySelector('.st-card-close')!.addEventListener('click', (e) => {
-    e.stopPropagation();
-    onClose();
-    card.remove();
-  });
-}
-
 function wirePillExpand(card: HTMLElement, msgEl: HTMLElement): void {
   card.addEventListener('click', () => {
     if (card.classList.contains('st-min')) scrollToPassage(msgEl);
   });
 }
 
-interface TangentContext {
-  adapter: LLMAdapter;
-  tangent: Tangent;
-  msgEl: HTMLElement;
-  onUpdate: (tangent: Tangent) => void;
+// ── composer: send, stop, stream, regenerate ───────────────────────────────
+
+interface ComposerContext extends BubbleParams {
+  thread: HTMLElement;
+  session: Session;
 }
 
-function wireComposer(card: HTMLElement, ctx: TangentContext): void {
+function wireComposer(card: HTMLElement, ctx: ComposerContext): void {
   const input = card.querySelector('.st-input') as HTMLTextAreaElement;
   const send = card.querySelector('.st-send') as HTMLButtonElement;
-  const thread = card.querySelector('.st-thread') as HTMLElement;
-  const submit = () => askQuestion(ctx, input, send, thread);
+  const regen = card.querySelector('.st-regen') as HTMLButtonElement;
+
+  const setGenerating = (on: boolean) => {
+    ctx.session.generating = on;
+    send.textContent = on ? '■' : '↑';
+    send.title = on ? 'Stop' : 'Send';
+    send.classList.toggle('st-stop', on);
+    regen.disabled = on;
+  };
+
+  const generate = (question: string, answer: HTMLElement, recordUser: boolean) =>
+    runGeneration(ctx, question, answer, recordUser, setGenerating, () => input.focus());
 
   input.addEventListener('input', () => autoGrow(input));
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      void submit();
+      void submit(ctx, input, generate);
     }
   });
-  send.addEventListener('click', () => void submit());
+  send.addEventListener('click', () => {
+    if (ctx.session.generating) ctx.adapter.stop();
+    else void submit(ctx, input, generate);
+  });
+  regen.addEventListener('click', () => void regenerate(ctx, generate));
 }
 
-async function askQuestion(
-  ctx: TangentContext,
+async function submit(
+  ctx: ComposerContext,
   input: HTMLTextAreaElement,
-  send: HTMLButtonElement,
-  thread: HTMLElement,
+  generate: (q: string, a: HTMLElement, recordUser: boolean) => Promise<void>,
 ): Promise<void> {
   const question = input.value.trim();
-  if (!question || send.disabled) return;
+  if (!question || ctx.session.generating) return;
   resetInput(input);
+  appendMessage(ctx.thread, 'user', question);
+  const answer = startAnswer(ctx.thread);
+  await generate(question, answer, true);
+}
 
-  appendMessage(thread, 'user', question);
-  const answer = appendMessage(thread, 'assistant', '…');
-  answer.classList.add('st-thinking');
-  send.disabled = true;
+async function regenerate(
+  ctx: ComposerContext,
+  generate: (q: string, a: HTMLElement, recordUser: boolean) => Promise<void>,
+): Promise<void> {
+  const { session, tangent } = ctx;
+  if (session.generating || !session.lastQuestion || !session.lastAnswer) return;
+  if (tangent.messages.at(-1)?.role === 'assistant') tangent.messages.pop();
+  session.lastAnswer.replaceChildren();
+  session.lastAnswer.textContent = '…';
+  session.lastAnswer.classList.add('st-thinking');
+  await generate(session.lastQuestion, session.lastAnswer, false);
+}
+
+async function runGeneration(
+  ctx: ComposerContext,
+  question: string,
+  answer: HTMLElement,
+  recordUser: boolean,
+  setGenerating: (on: boolean) => void,
+  refocus: () => void,
+): Promise<void> {
+  setGenerating(true);
   try {
-    const node = await askTangent(ctx.adapter, ctx.tangent.anchor.quotedText, question);
+    const node = await askTangent(ctx.adapter, ctx.tangent.anchor.quotedText, question, (text) =>
+      streamInto(answer, text),
+    );
     answer.classList.remove('st-thinking');
     answer.replaceChildren(node);
-    recordExchange(ctx.tangent, question, node.textContent ?? '');
+    const text = node.textContent ?? '';
+    addAnswerActions(answer, text);
+    recordExchange(ctx.tangent, question, text, recordUser);
+    ctx.session.lastQuestion = question;
+    ctx.session.lastAnswer = answer;
     ctx.onUpdate(ctx.tangent);
   } catch (err) {
     answer.classList.remove('st-thinking');
     answer.textContent = `⚠️ ${describeError(err)}`;
   } finally {
-    send.disabled = false;
-    scrollToPassage(ctx.msgEl); // back to the passage we tangented upon
-    setTimeout(() => input.focus(), REFOCUS_DELAY_MS);
+    setGenerating(false);
+    scrollToPassage(ctx.msgEl);
+    setTimeout(refocus, REFOCUS_DELAY_MS);
   }
 }
 
-function recordExchange(tangent: Tangent, question: string, answer: string): void {
-  tangent.messages.push({ role: 'user', text: question }, { role: 'assistant', text: answer });
+function streamInto(answer: HTMLElement, text: string): void {
+  answer.classList.remove('st-thinking');
+  answer.textContent = text;
+}
+
+function recordExchange(tangent: Tangent, question: string, answer: string, recordUser: boolean): void {
+  if (recordUser) tangent.messages.push({ role: 'user', text: question });
+  tangent.messages.push({ role: 'assistant', text: answer });
   if (!tangent.title) tangent.title = titleFrom(question);
 }
 
@@ -212,6 +332,36 @@ function appendMessage(thread: HTMLElement, role: 'user' | 'assistant', text: st
   bubble.textContent = text;
   thread.appendChild(bubble);
   return bubble;
+}
+
+function startAnswer(thread: HTMLElement): HTMLElement {
+  const answer = appendMessage(thread, 'assistant', '…');
+  answer.classList.add('st-thinking');
+  return answer;
+}
+
+function addAnswerActions(bubble: HTMLElement, text: string): void {
+  const actions = document.createElement('div');
+  actions.className = 'st-answer-actions';
+  const copy = document.createElement('button');
+  copy.className = 'st-mini';
+  copy.textContent = 'Copy';
+  copy.addEventListener('click', (e) => {
+    e.stopPropagation();
+    void copyText(text);
+    copy.textContent = 'Copied';
+    setTimeout(() => (copy.textContent = 'Copy'), COPIED_RESET_MS);
+  });
+  actions.appendChild(copy);
+  bubble.appendChild(actions);
+}
+
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    /* clipboard may be unavailable; ignore */
+  }
 }
 
 function autoGrow(input: HTMLTextAreaElement): void {
