@@ -1,0 +1,22 @@
+{
+  "name": "socratic-tangents",
+  "description": "Branching chat-in-chat tangents for ChatGPT and Claude.",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "submit": "wxt submit",
+    "compile": "tsc --noEmit",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "wxt": "^0.20.6"
+  }
+}
