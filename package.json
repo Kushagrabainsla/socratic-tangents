@@ -3,7 +3,7 @@
   "description": "Branching chat-in-chat tangents for ChatGPT and Claude.",
   "private": true,
   "type": "module",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "license": "MIT",
   "author": "Kushagra Bainsla",
   "scripts": {
