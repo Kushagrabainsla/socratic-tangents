@@ -1,11 +1,11 @@
 name: Release
 
-# Every push to main ships a release: auto-bump the patch version, build, create a GitHub
-# Release with the zips, and submit to every store whose secrets are configured. Stores without
-# secrets are skipped automatically.
+# Every push to main ships a release: build, create a GitHub Release with the zips, and submit to
+# every store whose secrets are configured. Stores without secrets are skipped automatically.
 #
-# The version-bump commit is pushed with the default GITHUB_TOKEN, whose pushes do not retrigger
-# workflows, so this never loops. It is also tagged "[skip ci]" as a second guard.
+# Versioning: package.json holds only the major.minor you control by hand. The published patch is
+# the workflow run number, computed here at build time and never committed. So releases are always
+# monotonically increasing AND main is never written back to (no bot commit, nothing to pull).
 on:
   push:
     branches: [main]
@@ -21,7 +21,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Don't run on the auto-generated version-bump commit (belt-and-suspenders with GITHUB_TOKEN).
+    # Skip a release for commits you don't want to ship (e.g. docs-only).
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     # Surfaced at job level so step `if:` can detect which stores are configured
     # (the `secrets` context isn't available in `if`, but `env` is).
@@ -38,14 +38,15 @@ jobs:
       - run: npm ci
       - run: npm run compile
 
-      - name: Bump patch version and tag
+      - name: Resolve release version
         id: meta
+        # major.minor from package.json + run number as patch. Computed only on the runner; never
+        # committed, so main stays untouched. run_number only ever increases, so versions are monotonic.
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          version=$(npm version patch -m "chore: release v%s [skip ci]")
-          echo "version=${version#v}" >> "$GITHUB_OUTPUT"
-          git push --follow-tags origin HEAD:main
+          base=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          version="${base}.${{ github.run_number }}"
+          npm version "$version" --no-git-tag-version --allow-same-version
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - run: npm run zip
       - run: npm run zip:firefox

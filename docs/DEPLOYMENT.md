@@ -13,11 +13,14 @@ day one (GitHub Release only) and turns into store publishing as you add credent
 
 ## Releasing
 
-**Just merge to `main`.** Every push to `main` is a release: `release.yml` bumps the patch version,
-builds, publishes a GitHub Release, and submits to every configured store.
+**Just merge to `main`.** Every push to `main` is a release: `release.yml` builds, publishes a
+GitHub Release, and submits to every configured store.
 
-- The version bump is committed back to `main` as `chore: release vX.Y.Z [skip ci]`. It is pushed
-  with the default `GITHUB_TOKEN`, whose pushes don't retrigger workflows, so this never loops.
+- **Versioning:** `package.json` holds only the `major.minor` you control by hand (e.g. `0.1`). The
+  published patch is the workflow **run number**, computed at build time as `major.minor.<run_number>`.
+  It is never committed, so `main` is never written back to — **nothing to pull after a release** —
+  and run numbers only increase, so store versions stay monotonic.
+- Bump `major.minor` in `package.json` yourself only when you want a meaningful version jump.
 - A `concurrency` group serializes releases, so rapid merges queue instead of racing.
 - Need to skip a release for a docs-only commit? Put `[skip ci]` in the commit message.
 
