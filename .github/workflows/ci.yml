@@ -1,8 +1,7 @@
 name: CI
 
+# Pull requests only. Pushes to main are handled by release.yml, which builds and ships.
 on:
-  push:
-    branches: [main]
   pull_request:
 
 permissions:

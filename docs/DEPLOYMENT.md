@@ -4,20 +4,26 @@ Two workflows, split only by what they need:
 
 | Workflow | Trigger | Needs secrets? | Does |
 |---|---|---|---|
-| [`ci.yml`](../.github/workflows/ci.yml) | every push to `main` + PRs | no | typecheck + build (Chrome + Firefox). Fast "does it build?" feedback |
-| [`release.yml`](../.github/workflows/release.yml) | push a `v*` tag | optional | build, create a GitHub Release with the zips, **and submit to every store you've configured** |
+| [`ci.yml`](../.github/workflows/ci.yml) | pull requests | no | typecheck + build (Chrome + Firefox). Fast "does it build?" feedback before merge |
+| [`release.yml`](../.github/workflows/release.yml) | every push to `main` | optional | auto-bump the patch version, build, create a GitHub Release with the zips, **and submit to every store you've configured** |
 
-CI is separate on purpose: it runs constantly and must never touch release logic or store
-credentials. Everything that *ships* lives in one place, `release.yml`, triggered intentionally by
-a version tag. Each store step **auto-skips** until its secrets exist, so releasing works on day one
-(GitHub Release only) and turns into store publishing as you add credentials.
+CI runs on PRs only and never touches release logic or store credentials. Everything that *ships*
+lives in `release.yml`. Each store step **auto-skips** until its secrets exist, so releasing works on
+day one (GitHub Release only) and turns into store publishing as you add credentials.
 
-## Cut a release
+## Releasing
 
-```bash
-npm version patch       # bumps package.json (= manifest version) + creates a v* tag
-git push --follow-tags  # → release.yml builds, makes a GitHub Release, submits to configured stores
-```
+**Just merge to `main`.** Every push to `main` is a release: `release.yml` bumps the patch version,
+builds, publishes a GitHub Release, and submits to every configured store.
+
+- The version bump is committed back to `main` as `chore: release vX.Y.Z [skip ci]`. It is pushed
+  with the default `GITHUB_TOKEN`, whose pushes don't retrigger workflows, so this never loops.
+- A `concurrency` group serializes releases, so rapid merges queue instead of racing.
+- Need to skip a release for a docs-only commit? Put `[skip ci]` in the commit message.
+
+> Heads-up: each release submits a new version to the Chrome Web Store, and **every submission goes
+> through review**. If you push many small commits, batch them (or use `[skip ci]`) to avoid a queue
+> of review submissions.
 
 ## Store setup
 

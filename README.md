@@ -37,7 +37,12 @@ when you scroll away, so a tangent is always one click from where it belongs.
 
 ## Install
 
-Store listings (Chrome, Edge, Firefox) are on the way. For now, install from source:
+**[Add to Chrome →](https://chromewebstore.google.com/detail/afkfidnckdglmamjpnofcpdgfddfneji)**
+
+Available on the Chrome Web Store. Click **Add to Chrome**, then open ChatGPT or Claude and start
+branching. Edge and Firefox listings are on the way.
+
+### From source
 
 ```bash
 npm install
@@ -49,14 +54,13 @@ Or build and load it manually. Run `npm run build`, open `chrome://extensions`, 
 
 ## Use
 
-1. Open **chatgpt.com**.
+1. Open **chatgpt.com** or **claude.ai**.
 2. Select any text in a reply and click **Tangent**.
 3. Ask your follow-up in the bubble. The answer lands inline, and your chat is untouched.
 
 ## Status
 
-- **ChatGPT** works today.
-- **Claude** is in progress. The code is provider-agnostic, so it is a matter of tuning selectors.
+- **ChatGPT** and **Claude** are both supported.
 - Adding another LLM is a small adapter, not a rewrite. See the architecture guide.
 
 ## Documentation

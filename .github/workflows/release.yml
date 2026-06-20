@@ -1,19 +1,28 @@
 name: Release
 
-# Cut a release by pushing a version tag:
-#   npm version patch && git push --follow-tags
-# This builds, creates a GitHub Release with the zips, and submits to every store whose secrets
-# are configured. Stores without secrets are skipped automatically, so this works from day one.
+# Every push to main ships a release: auto-bump the patch version, build, create a GitHub
+# Release with the zips, and submit to every store whose secrets are configured. Stores without
+# secrets are skipped automatically.
+#
+# The version-bump commit is pushed with the default GITHUB_TOKEN, whose pushes do not retrigger
+# workflows, so this never loops. It is also tagged "[skip ci]" as a second guard.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
 
 permissions:
   contents: write
 
+# Never run two releases at once; a queued push waits for the in-flight one to finish.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Don't run on the auto-generated version-bump commit (belt-and-suspenders with GITHUB_TOKEN).
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     # Surfaced at job level so step `if:` can detect which stores are configured
     # (the `secrets` context isn't available in `if`, but `env` is).
     env:
@@ -28,18 +37,25 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run compile
+
+      - name: Bump patch version and tag
+        id: meta
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          version=$(npm version patch -m "chore: release v%s [skip ci]")
+          echo "version=${version#v}" >> "$GITHUB_OUTPUT"
+          git push --follow-tags origin HEAD:main
+
       - run: npm run zip
       - run: npm run zip:firefox
 
       - name: Publish GitHub Release with build artifacts
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.meta.outputs.version }}
           files: .output/*.zip
           generate_release_notes: true
-
-      - name: Resolve version
-        id: meta
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Submit to Chrome Web Store
         if: env.CHROME_EXTENSION_ID != ''
