@@ -1,5 +1,5 @@
 import { hostMatches, pick, sleep } from '../tangent/dom';
-import type { LLMAdapter } from './types';
+import type { LLMAdapter, SelectorReport } from './types';
 
 /** How long to wait after inserting text before the framework enables the send button. */
 const COMPOSER_SETTLE_MS = 150;
@@ -74,7 +74,9 @@ export abstract class BaseDomAdapter implements LLMAdapter {
   cleanAnswer(el: HTMLElement): HTMLElement {
     const source = pick(el, this.selectors.answerContent) ?? el;
     const clone = source.cloneNode(true) as HTMLElement;
-    clone.querySelectorAll('button,[role="button"],svg,[data-testid],textarea,input,form').forEach((n) => n.remove());
+    clone
+      .querySelectorAll('button,[role="button"],svg,[data-testid],textarea,input,form')
+      .forEach((n) => n.remove());
     return clone;
   }
 
@@ -93,6 +95,13 @@ export abstract class BaseDomAdapter implements LLMAdapter {
   findMessageById(id: string): HTMLElement | null {
     if (!this.selectors.messageIdAttr || !id) return null;
     return document.querySelector<HTMLElement>(`[${this.selectors.messageIdAttr}="${CSS.escape(id)}"]`);
+  }
+
+  checkSelectors(): SelectorReport {
+    // The composer is the one element present on every chat page (even an empty conversation), so a
+    // missing composer is the most reliable signal that the provider's DOM has changed under us.
+    const missing = pick(document, this.selectors.composer) ? [] : ['composer'];
+    return { ok: missing.length === 0, missing };
   }
 
   async send(text: string): Promise<void> {
@@ -116,7 +125,9 @@ export abstract class BaseDomAdapter implements LLMAdapter {
     // contenteditable (ProseMirror): a synthetic paste is the most reliable insert.
     const data = new DataTransfer();
     data.setData('text/plain', text);
-    composer.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    composer.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+    );
   }
 
   /** Submit the composer via its send button, falling back to the Enter key. */
@@ -126,6 +137,8 @@ export abstract class BaseDomAdapter implements LLMAdapter {
       button.click();
       return;
     }
-    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+    composer.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }),
+    );
   }
 }

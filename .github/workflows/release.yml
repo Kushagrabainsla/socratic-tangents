@@ -1,17 +1,19 @@
 name: Release
 
-# Every push to main ships a release: build, create a GitHub Release with the zips, and submit to
-# every store whose secrets are configured. Stores without secrets are skipped automatically.
+# Every push to main ships a release: build once and publish a GitHub Release, then submit to each
+# configured store IN PARALLEL. The stores are independent jobs, so one failing never blocks the
+# others. The final `result` job turns the whole run red if any configured store failed, even though
+# the others went ahead. Stores without secrets are skipped automatically.
 #
 # Versioning: package.json holds only the major.minor you control by hand. The published patch is
-# the workflow run number, computed here at build time and never committed. So releases are always
+# the workflow run number, computed at build time and never committed. So releases are always
 # monotonically increasing AND main is never written back to (no bot commit, nothing to pull).
 on:
   push:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 # Never run two releases at once; a queued push waits for the in-flight one to finish.
 concurrency:
@@ -19,16 +21,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
-    # Skip a release for commits you don't want to ship (e.g. docs-only).
+    # Skip a release for commits you don't want to ship (e.g. docs-only). This cascades: the store
+    # jobs need `build`, so skipping it skips them too.
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    # Surfaced at job level so step `if:` can detect which stores are configured
-    # (the `secrets` context isn't available in `if`, but `env` is).
-    env:
-      CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-      EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
-      FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      has_chrome: ${{ steps.stores.outputs.has_chrome }}
+      has_edge: ${{ steps.stores.outputs.has_edge }}
+      has_firefox: ${{ steps.stores.outputs.has_firefox }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -58,41 +62,158 @@ jobs:
           files: .output/*.zip
           generate_release_notes: true
 
-      - name: Submit to Chrome Web Store
-        if: env.CHROME_EXTENSION_ID != ''
+      - name: Hand the zips to the store jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-zips
+          path: .output/*.zip
+          if-no-files-found: error
+          retention-days: 5
+
+      - name: Detect which stores are configured
+        id: stores
+        # The `secrets` context isn't available in a job-level `if`, so we resolve presence here into
+        # outputs the store jobs can gate on.
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+          FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
         run: |
-          npx wxt submit \
-            --chrome-zip ".output/socratic-tangents-${{ steps.meta.outputs.version }}-chrome.zip" \
+          {
+            echo "has_chrome=$([ -n "$CHROME_EXTENSION_ID" ] && echo true || echo false)"
+            echo "has_edge=$([ -n "$EDGE_PRODUCT_ID" ] && echo true || echo false)"
+            echo "has_firefox=$([ -n "$FIREFOX_EXTENSION_ID" ] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+
+  chrome:
+    needs: build
+    if: needs.build.outputs.has_chrome == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-zips
+          path: .output
+      - name: Submit to Chrome Web Store
+        # A new upload is rejected while the previous submission is still in review or ready to
+        # publish (ITEM_NOT_UPDATABLE). That collision is expected with publish-on-every-push, so we
+        # treat it as a soft skip and keep this job green; any other error still fails it.
+        run: |
+          if output=$(npx wxt submit \
+            --chrome-zip ".output/socratic-tangents-${{ needs.build.outputs.version }}-chrome.zip" \
             --chrome-extension-id "$CHROME_EXTENSION_ID" \
             --chrome-client-id "$CHROME_CLIENT_ID" \
             --chrome-client-secret "$CHROME_CLIENT_SECRET" \
-            --chrome-refresh-token "$CHROME_REFRESH_TOKEN"
+            --chrome-refresh-token "$CHROME_REFRESH_TOKEN" 2>&1); then
+            echo "$output"
+          else
+            echo "$output"
+            if echo "$output" | grep -q "ITEM_NOT_UPDATABLE"; then
+              echo "::warning::Chrome Web Store skipped: the listing is in review or ready to publish (ITEM_NOT_UPDATABLE). Resubmit this version once review clears."
+              exit 0
+            fi
+            exit 1
+          fi
         env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
           CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
           CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
           CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
 
+  edge:
+    needs: build
+    if: needs.build.outputs.has_edge == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-zips
+          path: .output
       - name: Submit to Edge Add-ons
-        if: env.EDGE_PRODUCT_ID != ''
+        # Edge is Chromium, so it ships the same Chrome zip.
         run: |
           npx wxt submit \
-            --edge-zip ".output/socratic-tangents-${{ steps.meta.outputs.version }}-chrome.zip" \
+            --edge-zip ".output/socratic-tangents-${{ needs.build.outputs.version }}-chrome.zip" \
             --edge-product-id "$EDGE_PRODUCT_ID" \
             --edge-client-id "$EDGE_CLIENT_ID" \
             --edge-api-key "$EDGE_API_KEY"
         env:
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
           EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
 
+  firefox:
+    needs: build
+    if: needs.build.outputs.has_firefox == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-zips
+          path: .output
       - name: Submit to Firefox Add-ons
-        if: env.FIREFOX_EXTENSION_ID != ''
         run: |
           npx wxt submit \
-            --firefox-zip ".output/socratic-tangents-${{ steps.meta.outputs.version }}-firefox.zip" \
-            --firefox-sources-zip ".output/socratic-tangents-${{ steps.meta.outputs.version }}-sources.zip" \
+            --firefox-zip ".output/socratic-tangents-${{ needs.build.outputs.version }}-firefox.zip" \
+            --firefox-sources-zip ".output/socratic-tangents-${{ needs.build.outputs.version }}-sources.zip" \
             --firefox-extension-id "$FIREFOX_EXTENSION_ID" \
             --firefox-jwt-issuer "$FIREFOX_JWT_ISSUER" \
             --firefox-jwt-secret "$FIREFOX_JWT_SECRET"
         env:
+          FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
           FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+
+  result:
+    needs: [build, chrome, edge, firefox]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every configured store to have succeeded
+        # The store jobs already show their own pass/fail. This gate makes the overall run fail if any
+        # of them failed, even though the others went ahead. A store with no secrets is 'skipped' and
+        # does not count; a [skip ci] commit skips the build and is a clean no-op.
+        run: |
+          build="${{ needs.build.result }}"
+          chrome="${{ needs.chrome.result }}"
+          edge="${{ needs.edge.result }}"
+          firefox="${{ needs.firefox.result }}"
+          echo "build=$build chrome=$chrome edge=$edge firefox=$firefox"
+          if [ "$build" = "skipped" ]; then
+            echo "Release skipped (no build)."
+            exit 0
+          fi
+          if [ "$build" != "success" ]; then
+            echo "Build failed."
+            exit 1
+          fi
+          fail=0
+          for result in "$chrome" "$edge" "$firefox"; do
+            case "$result" in
+              success | skipped) ;;
+              *) fail=1 ;;
+            esac
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "At least one configured store failed."
+            exit 1
+          fi
+          echo "All configured stores succeeded."

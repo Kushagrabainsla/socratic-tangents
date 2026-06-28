@@ -55,8 +55,11 @@ Or build and load it manually. Run `npm run build`, open `chrome://extensions`, 
 ## Use
 
 1. Open **chatgpt.com** or **claude.ai**.
-2. Select any text in a reply and click **Tangent**.
-3. Ask your follow-up in the bubble. The answer lands inline, and your chat is untouched.
+2. Select any text in a reply and click **Tangent** (or press **Alt+T**).
+3. Ask your follow-up in the bubble. The answer lands inline, and your chat is untouched. Drag the
+   bubble's bottom-right corner to resize it.
+4. Use the tangents list (bottom-left) to jump back to any tangent, or to export and import them as
+   Markdown or JSON.
 
 ## Status
 
@@ -65,16 +68,18 @@ Or build and load it manually. Run `npm run build`, open `chrome://extensions`, 
 
 ## Documentation
 
-| Doc | What it covers |
-|---|---|
+| Doc                                                    | What it covers                                            |
+| ------------------------------------------------------ | --------------------------------------------------------- |
 | [Architecture and adding an LLM](docs/ARCHITECTURE.md) | How it is built, and how to add a provider in three steps |
-| [Deployment and publishing](docs/DEPLOYMENT.md) | CI/CD and store publishing |
+| [Deployment and publishing](docs/DEPLOYMENT.md)        | CI/CD and store publishing                                |
 
 ## Develop
 
 ```bash
-npm run compile   # typecheck
-npm run build     # production build into .output/chrome-mv3
+npm run compile    # typecheck
+npm run lint       # ESLint
+npm run test       # unit tests (Vitest)
+npm run build      # production build into .output/chrome-mv3
 ```
 
 ## Contributing

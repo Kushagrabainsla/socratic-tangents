@@ -66,6 +66,12 @@ const CSS = `
 .st-card[data-st-theme="dark"] .st-send{background:#ececec;color:#1a1a1a}
 .st-send:disabled{opacity:.4;cursor:default}
 
+/* corner grip to resize the bubble */
+.st-resize{position:absolute;right:3px;bottom:3px;width:14px;height:14px;cursor:nwse-resize;opacity:.4;
+  border-right:2px solid currentColor;border-bottom:2px solid currentColor;border-bottom-right-radius:5px}
+.st-resize:hover{opacity:.8}
+.st-card.st-min .st-resize{display:none}
+
 /* highlight on the message a tangent is anchored to */
 .st-anchored{outline:2px solid color-mix(in srgb, #8b7bff 55%, transparent);outline-offset:6px;border-radius:8px}
 
@@ -90,6 +96,38 @@ const CSS = `
   padding:7px 9px;border-radius:7px;cursor:pointer;font:13px ui-sans-serif,system-ui,sans-serif;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st-list-item:hover{background:color-mix(in srgb, currentColor 12%, transparent)}
+
+/* export and import actions at the top of the launcher panel */
+.st-launcher-actions{display:flex;gap:6px;padding:2px 2px 8px;margin-bottom:4px;
+  border-bottom:1px solid color-mix(in srgb, currentColor 14%, transparent)}
+.st-export{flex:1;border:none;border-radius:7px;padding:6px 8px;cursor:pointer;
+  font:600 12px ui-sans-serif,system-ui,sans-serif;color:inherit;
+  background:color-mix(in srgb, currentColor 10%, transparent)}
+.st-export:hover{background:color-mix(in srgb, currentColor 18%, transparent)}
+.st-launcher-empty{padding:8px 9px;opacity:.6;font:13px ui-sans-serif,system-ui,sans-serif;line-height:1.45}
+
+/* dismissible toast notices (broken-selector warning, import result, first-run hint) */
+.st-notice-host{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483647;
+  display:flex;flex-direction:column;gap:8px;align-items:center;max-width:calc(100vw - 24px);
+  pointer-events:none}
+.st-notice{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;max-width:440px;
+  font:500 13px ui-sans-serif,system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.28);
+  animation:st-pop .14s ease-out;pointer-events:auto}
+.st-notice[data-st-theme="light"]{background:#fff;border:1px solid #e5e5e5;color:#0d0d0d}
+.st-notice[data-st-theme="dark"]{background:#2a2a2a;border:1px solid #3a3a3a;color:#ececec}
+.st-notice-text{flex:1 1 auto;line-height:1.45}
+.st-notice-action{flex:0 0 auto;border:none;border-radius:7px;padding:5px 10px;cursor:pointer;color:#fff;
+  font:600 12px ui-sans-serif,system-ui,sans-serif;background:#7c5cff}
+.st-notice-close{flex:0 0 auto;border:none;background:none;color:inherit;opacity:.5;cursor:pointer;
+  font-size:13px;line-height:1;padding:2px 4px;border-radius:6px}
+.st-notice-close:hover{opacity:1;background:color-mix(in srgb, currentColor 12%, transparent)}
+
+/* visible keyboard focus on every interactive control */
+.st-tangent-btn:focus-visible,.st-icon:focus-visible,.st-send:focus-visible,.st-mini:focus-visible,
+.st-marker:focus-visible,.st-launcher:focus-visible,.st-list-item:focus-visible,.st-input:focus-visible,
+.st-export:focus-visible,.st-notice-action:focus-visible,.st-notice-close:focus-visible{
+  outline:2px solid #7c5cff;outline-offset:2px}
+
 @media (prefers-color-scheme: dark){
   .st-marker-menu,.st-launcher-panel{background:#2a2a2a;color:#ececec;border-color:#3a3a3a}
 }

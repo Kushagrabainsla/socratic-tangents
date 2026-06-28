@@ -1,6 +1,14 @@
 // A provider adapter encapsulates EVERYTHING DOM-specific about one LLM web app.
 // The tangent engine and UI are written purely against this interface, so adding a new LLM
 // means implementing this once (usually via BaseDomAdapter) and registering it. No core changes.
+
+/** Result of a selector health check: which core hooks the page still exposes. */
+export interface SelectorReport {
+  ok: boolean;
+  /** Names of core hooks that no longer resolve (e.g. 'composer'); empty when healthy. */
+  missing: string[];
+}
+
 export interface LLMAdapter {
   readonly id: string;
   readonly name: string;
@@ -32,4 +40,7 @@ export interface LLMAdapter {
   conversationId(): string;
   /** Find a message element by its stable id, or null if the provider has no stable ids. */
   findMessageById(id: string): HTMLElement | null;
+
+  /** Check that the page still exposes the core selectors this adapter relies on. */
+  checkSelectors(): SelectorReport;
 }

@@ -21,7 +21,7 @@ no servers, and no analytics.
 
 ## What the extension stores
 
-Your tangents and settings are saved using the browser's local `storage` so they persist
+Your tangents are saved using the browser's local `storage` so they persist
 across page reloads and revisits. This data is kept only on your own device and is never
 sent anywhere. You can remove it at any time by deleting your tangents or uninstalling the
 extension.

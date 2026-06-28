@@ -25,6 +25,7 @@ and register it. The engine and UI do not change.
 ## Code style
 
 - TypeScript in strict mode. Keep `npm run compile` clean.
+- ESLint and Prettier enforce the style. Run `npm run lint` and `npm run format` before pushing.
 - Small functions that do one thing, with clear names. Prefer readable code over comments.
 - Plain language in docs and comments. No em dashes.
 - Match the style of the file you are editing.
@@ -32,6 +33,8 @@ and register it. The engine and UI do not change.
 ## Before you open a pull request
 
 ```bash
+npm run lint      # ESLint
+npm run test      # unit tests (Vitest)
 npm run compile   # typecheck
 npm run build     # production build
 ```

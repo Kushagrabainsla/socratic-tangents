@@ -2,20 +2,26 @@
 
 Two workflows, split only by what they need:
 
-| Workflow | Trigger | Needs secrets? | Does |
-|---|---|---|---|
-| [`ci.yml`](../.github/workflows/ci.yml) | pull requests | no | typecheck + build (Chrome + Firefox). Fast "does it build?" feedback before merge |
-| [`release.yml`](../.github/workflows/release.yml) | every push to `main` | optional | auto-bump the patch version, build, create a GitHub Release with the zips, **and submit to every store you've configured** |
+| Workflow                                          | Trigger              | Needs secrets? | Does                                                                                                                             |
+| ------------------------------------------------- | -------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| [`ci.yml`](../.github/workflows/ci.yml)           | pull requests        | no             | typecheck + build (Chrome + Firefox). Fast "does it build?" feedback before merge                                                |
+| [`release.yml`](../.github/workflows/release.yml) | every push to `main` | optional       | auto-bump the patch version, build, publish a GitHub Release with the zips, **and submit to every configured store in parallel** |
 
-CI runs on PRs only and never touches release logic or store credentials. Everything that *ships*
-lives in `release.yml`. Each store step **auto-skips** until its secrets exist, so releasing works on
-day one (GitHub Release only) and turns into store publishing as you add credentials.
+CI runs on PRs only and never touches release logic or store credentials. Everything that _ships_
+lives in `release.yml`: a `build` job publishes the GitHub Release and hands the zips to one job per
+store (Chrome, Edge, Firefox) that run **in parallel**. Each store job **auto-skips** until its
+secrets exist, so releasing works on day one (GitHub Release only) and turns into store publishing as
+you add credentials.
 
 ## Releasing
 
 **Just merge to `main`.** Every push to `main` is a release: `release.yml` builds, publishes a
 GitHub Release, and submits to every configured store.
 
+- **Parallel and independent:** each store is its own job, so they run at the same time and one
+  failing never blocks the others. A final `result` job turns the overall run **red if any configured
+  store failed**, even though the others still published. Stores without secrets are skipped and do
+  not count against the run.
 - **Versioning:** `package.json` holds only the `major.minor` you control by hand (e.g. `0.1`). The
   published patch is the workflow **run number**, computed at build time as `major.minor.<run_number>`.
   It is never committed, so `main` is never written back to — **nothing to pull after a release** —
@@ -26,7 +32,11 @@ GitHub Release, and submits to every configured store.
 
 > Heads-up: each release submits a new version to the Chrome Web Store, and **every submission goes
 > through review**. If you push many small commits, batch them (or use `[skip ci]`) to avoid a queue
-> of review submissions.
+> of review submissions. While a previous version is still in review or ready to publish, the Chrome
+> API rejects the next upload with `ITEM_NOT_UPDATABLE`. The release workflow treats that one case as
+> a soft skip (it logs a warning and stays green, and other stores still publish); resubmit that
+> version from the Chrome dashboard, or just let the next push ship once review clears. Any other
+> Chrome error still fails the run.
 
 ## Store setup
 
@@ -34,17 +44,23 @@ Add these as **GitHub → Settings → Secrets and variables → Actions**. A st
 of its secrets are present.
 
 ### Chrome Web Store
+
 One-time **$5** developer registration. Create the item by uploading a first zip manually to get its
 **extension ID**, then create Web Store API OAuth credentials + a refresh token.
+
 - `CHROME_EXTENSION_ID`, `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`
 
 ### Microsoft Edge Add-ons (**free**)
-Edge is Chromium, so it ships the *same* Chrome zip. Register (free) in Partner Center, create the
+
+Edge is Chromium, so it ships the _same_ Chrome zip. Register (free) in Partner Center, create the
 item to get the **product ID**, and create API credentials.
+
 - `EDGE_PRODUCT_ID`, `EDGE_CLIENT_ID`, `EDGE_API_KEY`
 
 ### Firefox Add-ons / AMO (**free**)
+
 Create AMO API credentials (JWT issuer + secret).
+
 - `FIREFOX_EXTENSION_ID`, `FIREFOX_JWT_ISSUER`, `FIREFOX_JWT_SECRET`
 
 > Step-by-step credential guides for all three: <https://wxt.dev/guide/essentials/publishing.html>
@@ -53,7 +69,7 @@ Create AMO API credentials (JWT issuer + secret).
 
 For Chrome users before/without the $5: link the **GitHub Release** zip and have them unzip and use
 `chrome://extensions` → Developer mode → **Load unpacked**. See the install steps in the
-[README](../README.md). (Firefox also supports a self-hosted *signed* `.xpi` via an unlisted AMO
+[README](../README.md). (Firefox also supports a self-hosted _signed_ `.xpi` via an unlisted AMO
 submission, if you prefer not to list publicly.)
 
 ## Heads-up on review

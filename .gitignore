@@ -6,3 +6,4 @@ stats.html
 .env
 .env.*
 .DS_Store
+changes.patch

@@ -4,6 +4,9 @@ import { titleFrom, type Tangent } from './model';
 import { isDark } from './theme';
 
 const MAX_WIDTH = 420;
+const MIN_WIDTH = 300;
+const MIN_HEIGHT = 220;
+const MAX_RESIZE_WIDTH = 680;
 const MARGIN = 12;
 const REFOCUS_DELAY_MS = 350;
 const COPIED_RESET_MS = 1200;
@@ -13,17 +16,18 @@ const CARD_TEMPLATE = `
   <div class="st-card-head">
     <span class="st-card-label">↳ Tangent</span>
     <div class="st-card-actions">
-      <button class="st-icon st-regen" title="Regenerate last answer">↻</button>
-      <button class="st-icon st-del" title="Delete tangent">🗑</button>
-      <button class="st-icon st-card-close" title="Close">✕</button>
+      <button class="st-icon st-regen" title="Regenerate last answer" aria-label="Regenerate last answer">↻</button>
+      <button class="st-icon st-del" title="Delete tangent" aria-label="Delete tangent">🗑</button>
+      <button class="st-icon st-card-close" title="Close" aria-label="Close tangent">✕</button>
     </div>
   </div>
   <div class="st-quote"></div>
-  <div class="st-thread"></div>
+  <div class="st-thread" aria-live="polite"></div>
   <div class="st-composer">
-    <textarea class="st-input" rows="1" placeholder="Ask about this…"></textarea>
-    <button class="st-send" title="Send">↑</button>
-  </div>`;
+    <textarea class="st-input" rows="1" placeholder="Ask about this…" aria-label="Ask about this passage"></textarea>
+    <button class="st-send" title="Send" aria-label="Send">↑</button>
+  </div>
+  <div class="st-resize" title="Resize" aria-hidden="true"></div>`;
 
 export interface BubbleParams {
   adapter: LLMAdapter;
@@ -63,11 +67,12 @@ export function openBubble(params: BubbleParams): void {
   msgEl.classList.add(ANCHORED_CLASS);
 
   const pin: Pin = { active: false, left: 0, top: 0 };
+  const size: Size = { width: Math.min(MAX_WIDTH, window.innerWidth - 24), height: 0 };
   const session: Session = { generating: false, lastQuestion: '', lastAnswer: null };
   const thread = card.querySelector('.st-thread') as HTMLElement;
   restore(thread, tangent, session);
 
-  const stopTracking = trackToPassage(card, msgEl, rect, pin);
+  const stopTracking = trackToPassage(card, msgEl, rect, pin, size);
   const close = () => {
     stopTracking();
     msgEl.classList.remove(ANCHORED_CLASS);
@@ -75,6 +80,7 @@ export function openBubble(params: BubbleParams): void {
   };
 
   wireHeader(card, params, pin, close);
+  enableResize(card.querySelector('.st-resize') as HTMLElement, card, size);
   wirePillExpand(card, msgEl);
   wireKeyboard(card, close);
   wireComposer(card, { ...params, thread, session });
@@ -86,6 +92,8 @@ function createCard(tangent: Tangent): HTMLElement {
   card.className = 'st-card';
   card.dataset.tangentId = tangent.id;
   card.dataset.stTheme = isDark() ? 'dark' : 'light';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-label', 'Tangent');
   card.innerHTML = CARD_TEMPLATE;
   (card.querySelector('.st-quote') as HTMLElement).textContent = tangent.anchor.quotedText;
   return card;
@@ -152,20 +160,30 @@ function wireKeyboard(card: HTMLElement, close: () => void): void {
 interface Anchor {
   offsetX: number;
   offsetY: number;
-  width: number;
 }
 
-function trackToPassage(card: HTMLElement, msgEl: HTMLElement, rect: DOMRect, pin: Pin): () => void {
+/** User-set bubble size. `height` of 0 means content-driven (capped by max-height). */
+interface Size {
+  width: number;
+  height: number;
+}
+
+function trackToPassage(
+  card: HTMLElement,
+  msgEl: HTMLElement,
+  rect: DOMRect,
+  pin: Pin,
+  size: Size,
+): () => void {
   const origin = msgEl.getBoundingClientRect();
   const anchor: Anchor = {
     offsetX: rect.left - origin.left,
     offsetY: rect.bottom - origin.top,
-    width: Math.min(MAX_WIDTH, window.innerWidth - 24),
   };
   let running = true;
   const step = () => {
     if (!running) return;
-    placeCard(card, msgEl, anchor, pin);
+    placeCard(card, msgEl, anchor, pin, size);
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -174,11 +192,11 @@ function trackToPassage(card: HTMLElement, msgEl: HTMLElement, rect: DOMRect, pi
   };
 }
 
-function placeCard(card: HTMLElement, msgEl: HTMLElement, anchor: Anchor, pin: Pin): void {
+function placeCard(card: HTMLElement, msgEl: HTMLElement, anchor: Anchor, pin: Pin, size: Size): void {
   if (pin.active) {
     card.classList.remove('st-min');
-    card.style.width = `${anchor.width}px`;
-    card.style.left = `${clampLeft(pin.left, anchor.width)}px`;
+    applySize(card, size);
+    card.style.left = `${clampLeft(pin.left, size.width)}px`;
     card.style.top = `${clampTop(pin.top, card.offsetHeight)}px`;
     return;
   }
@@ -186,19 +204,56 @@ function placeCard(card: HTMLElement, msgEl: HTMLElement, anchor: Anchor, pin: P
   const desiredTop = m.top + anchor.offsetY;
   if (isOnScreen(desiredTop, m)) {
     card.classList.remove('st-min');
-    card.style.width = `${anchor.width}px`;
-    card.style.left = `${clampLeft(m.left + anchor.offsetX, anchor.width)}px`;
+    applySize(card, size);
+    card.style.left = `${clampLeft(m.left + anchor.offsetX, size.width)}px`;
     card.style.top = `${clampTop(desiredTop, card.offsetHeight)}px`;
   } else {
     card.classList.add('st-min');
     card.style.removeProperty('width');
+    card.style.removeProperty('height');
     card.style.removeProperty('left');
     card.style.removeProperty('top');
   }
 }
 
+function applySize(card: HTMLElement, size: Size): void {
+  card.style.width = `${size.width}px`;
+  if (size.height > 0) card.style.height = `${size.height}px`;
+  else card.style.removeProperty('height');
+}
+
+/** Drag the bottom-right corner to resize. Updates `size`, which the placement loop reads each frame. */
+function enableResize(handle: HTMLElement, card: HTMLElement, size: Size): void {
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = card.offsetWidth;
+    const startHeight = card.offsetHeight;
+    const move = (ev: MouseEvent) => {
+      size.width = clamp(
+        startWidth + ev.clientX - startX,
+        MIN_WIDTH,
+        Math.min(MAX_RESIZE_WIDTH, window.innerWidth - 24),
+      );
+      size.height = clamp(startHeight + ev.clientY - startY, MIN_HEIGHT, window.innerHeight - 24);
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
 function isOnScreen(top: number, m: DOMRect): boolean {
   return top > 8 && top < window.innerHeight - 80 && m.bottom > 0 && m.top < window.innerHeight;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, max));
 }
 
 function clampLeft(left: number, width: number): number {
@@ -235,6 +290,7 @@ function wireComposer(card: HTMLElement, ctx: ComposerContext): void {
     ctx.session.generating = on;
     send.textContent = on ? '■' : '↑';
     send.title = on ? 'Stop' : 'Send';
+    send.setAttribute('aria-label', on ? 'Stop' : 'Send');
     send.classList.toggle('st-stop', on);
     regen.disabled = on;
   };
@@ -292,7 +348,7 @@ async function runGeneration(
 ): Promise<void> {
   setGenerating(true);
   try {
-    const node = await askTangent(ctx.adapter, ctx.tangent.anchor.quotedText, question, (text) =>
+    const { node, turnIds } = await askTangent(ctx.adapter, ctx.tangent.anchor.quotedText, question, (text) =>
       streamInto(answer, text),
     );
     answer.classList.remove('st-thinking');
@@ -300,6 +356,7 @@ async function runGeneration(
     const text = node.textContent ?? '';
     addAnswerActions(answer, text);
     recordExchange(ctx.tangent, question, text, recordUser);
+    recordTurnIds(ctx.tangent, turnIds);
     ctx.session.lastQuestion = question;
     ctx.session.lastAnswer = answer;
     ctx.onUpdate(ctx.tangent);
@@ -322,6 +379,17 @@ function recordExchange(tangent: Tangent, question: string, answer: string, reco
   if (recordUser) tangent.messages.push({ role: 'user', text: question });
   tangent.messages.push({ role: 'assistant', text: answer });
   if (!tangent.title) tangent.title = titleFrom(question);
+}
+
+/** Remember the provider ids of the turns this ask added, so they can be re-hidden after a reload. */
+function recordTurnIds(tangent: Tangent, turnIds: string[]): void {
+  const seen = new Set(tangent.hiddenTurnIds);
+  for (const id of turnIds) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      tangent.hiddenTurnIds.push(id);
+    }
+  }
 }
 
 // ── small view helpers ───────────────────────────────────────────────────

@@ -51,6 +51,7 @@ function addMarker(msgEl: HTMLElement, tangents: Tangent[], onOpen: OpenTangent)
   marker.className = MARKER_CLASS;
   marker.textContent = label(tangents.length);
   marker.title = tangents.length > 1 ? `${tangents.length} tangents` : 'Open tangent';
+  marker.setAttribute('aria-label', marker.title);
   marker.addEventListener('click', (e) => {
     e.stopPropagation();
     if (tangents.length === 1) onOpen(tangents[0]!.id);

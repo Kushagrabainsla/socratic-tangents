@@ -11,6 +11,12 @@ export function composePrompt(passage: string, question: string): string {
   return p ? `Regarding this part: "${p}"\n\n${q}` : q;
 }
 
+/** The clean answer node plus the provider ids of the turns this ask added (so they can be re-hidden). */
+export interface TangentAnswer {
+  node: HTMLElement;
+  turnIds: string[];
+}
+
 /**
  * Ask a tangent question and return the clean answer node. The send goes through the provider's
  * own composer (so it handles anti-abuse); the resulting turns are hidden from the main thread so
@@ -21,13 +27,13 @@ export async function askTangent(
   passage: string,
   question: string,
   onProgress?: (text: string) => void,
-): Promise<HTMLElement> {
+): Promise<TangentAnswer> {
   const before = currentMessageIds(adapter);
   const hideObserver = hideNewTurns(adapter, before);
   try {
     await adapter.send(composePrompt(passage, question));
     const answerNode = await waitForAnswer(adapter, before, onProgress);
-    return adapter.cleanAnswer(answerNode);
+    return { node: adapter.cleanAnswer(answerNode), turnIds: newTurnIds(adapter, before) };
   } finally {
     hideObserver.disconnect();
   }
@@ -35,6 +41,22 @@ export async function askTangent(
 
 function currentMessageIds(adapter: LLMAdapter): Set<string> {
   return new Set(adapter.messageElements().map((el) => adapter.messageId(el)));
+}
+
+/** The ids of every turn added since `before` (the tangent's question and answer turns). */
+function newTurnIds(adapter: LLMAdapter, before: Set<string>): string[] {
+  return adapter
+    .messageElements()
+    .map((el) => adapter.messageId(el))
+    .filter((id) => !before.has(id));
+}
+
+/** Re-hide previously-sent tangent turns (e.g. after a reload) so they leave no trace in the thread. */
+export function hideTurns(adapter: LLMAdapter, ids: ReadonlySet<string>): void {
+  if (ids.size === 0) return;
+  for (const el of adapter.messageElements()) {
+    if (ids.has(adapter.messageId(el))) adapter.turnWrapper(el).style.display = 'none';
+  }
 }
 
 /** Hide every turn added after `before`, so a sent tangent leaves no trace in the thread. */

@@ -17,6 +17,8 @@ export interface Tangent {
   conversationId: string;
   anchor: Anchor;
   messages: TangentMessage[];
+  /** Provider message ids of the hidden turns this tangent sent, so we can re-hide them on reload. */
+  hiddenTurnIds: string[];
   title: string;
   createdAt: number;
   updatedAt: number;

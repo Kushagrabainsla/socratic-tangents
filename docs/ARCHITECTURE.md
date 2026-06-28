@@ -59,7 +59,7 @@ Usually three small steps, with no changes to the engine or UI:
        assistantMessage: 'model-response',
        anyMessage: 'user-query, model-response',
        turnWrapper: '.conversation-turn',
-       messageIdAttr: '',            // '' → synthetic ids when the site has none
+       messageIdAttr: '', // '' → synthetic ids when the site has none
        answerContent: ['.markdown', '.prose'],
        composer: ['div[contenteditable="true"]', 'textarea'],
        sendButton: ['button[aria-label*="Send" i]'],
@@ -76,3 +76,13 @@ Usually three small steps, with no changes to the engine or UI:
 
 If a provider is unusual (e.g. a non-standard composer), override the relevant method in your
 adapter instead of changing the core.
+
+## Tests
+
+Vitest covers the parts worth protecting (`*.test.ts` next to each module). The provider-agnostic
+core is unit-tested: model helpers, anchoring, prompt composition, storage, export, and import
+validation. Adapters get **contract tests** ([adapters.test.ts](../lib/adapters/adapters.test.ts))
+that run each adapter's selectors against a small HTML fixture, so selector rot fails the build
+instead of reaching users. The same risk is also caught at runtime by `checkSelectors`, which warns
+the user if the live page stops matching. Run `npm run test` during development and `npm run test:run`
+for a single pass (what CI runs).
