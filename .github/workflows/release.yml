@@ -69,6 +69,7 @@ jobs:
           path: .output/*.zip
           if-no-files-found: error
           retention-days: 5
+          include-hidden-files: true
 
       - name: Detect which stores are configured
         id: stores
