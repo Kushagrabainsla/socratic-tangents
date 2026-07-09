@@ -81,7 +81,7 @@ export abstract class BaseDomAdapter implements LLMAdapter {
   }
 
   isStreaming(): boolean {
-    return this.selectors.streaming.some((s) => document.querySelector(s) != null);
+    return this.selectors.streaming.some((s) => pick(document, [s]) != null);
   }
 
   stop(): void {

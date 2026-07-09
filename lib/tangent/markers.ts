@@ -1,6 +1,7 @@
 import type { LLMAdapter } from '../adapters/types';
 import { resolveAnchor } from './anchor';
 import type { Tangent } from './model';
+import { isDark } from './theme';
 
 // A small badge on every message that has tangents. Click to reopen (or pick from a menu when a
 // message has several). Markers are rebuilt whenever the tangent list changes.
@@ -49,6 +50,7 @@ function addMarker(msgEl: HTMLElement, tangents: Tangent[], onOpen: OpenTangent)
   if (getComputedStyle(msgEl).position === 'static') msgEl.style.position = 'relative';
   const marker = document.createElement('button');
   marker.className = MARKER_CLASS;
+  marker.dataset.stUi = '1';
   marker.textContent = label(tangents.length);
   marker.title = tangents.length > 1 ? `${tangents.length} tangents` : 'Open tangent';
   marker.setAttribute('aria-label', marker.title);
@@ -64,6 +66,8 @@ function openMenu(anchorEl: HTMLElement, tangents: Tangent[], onOpen: OpenTangen
   document.querySelectorAll(`.${MENU_CLASS}`).forEach((n) => n.remove());
   const menu = document.createElement('div');
   menu.className = MENU_CLASS;
+  menu.dataset.stUi = '1';
+  menu.dataset.stTheme = isDark() ? 'dark' : 'light';
   for (const tangent of tangents) {
     const item = document.createElement('button');
     item.className = 'st-list-item';

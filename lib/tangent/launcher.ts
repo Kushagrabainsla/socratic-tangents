@@ -1,7 +1,10 @@
 import type { Tangent } from './model';
 import type { OpenTangent } from './markers';
+import { buildTangentTree, type TangentNode } from './tree';
 import { downloadTangents, type ExportFormat } from './export';
 import { pickJsonFile } from './import';
+import { TRASH_ICON } from './icons';
+import { isDark } from './theme';
 
 export type DeleteTangent = (id: string) => void;
 export type ImportTangents = (json: string) => void;
@@ -20,12 +23,14 @@ export class Launcher {
   ) {
     this.button = document.createElement('button');
     this.button.className = 'st-launcher';
+    this.button.dataset.stUi = '1';
     this.button.title = 'Tangents in this chat';
     this.button.setAttribute('aria-label', 'Tangents in this chat');
     this.button.addEventListener('click', () => this.toggle());
 
     this.panel = document.createElement('div');
     this.panel.className = 'st-launcher-panel';
+    this.panel.dataset.stUi = '1';
     this.panel.style.display = 'none';
 
     document.body.append(this.button, this.panel);
@@ -38,9 +43,21 @@ export class Launcher {
   }
 
   private rebuildPanel(): void {
-    const rows =
-      this.tangents.length > 0 ? this.tangents.map((tangent) => this.itemFor(tangent)) : [this.emptyHint()];
+    const rows = this.tangents.length > 0 ? this.treeRows() : [this.emptyHint()];
     this.panel.replaceChildren(this.actionsBar(), ...rows);
+  }
+
+  /** Flatten the tangent forest into indented rows so nested tangents read as a tree. */
+  private treeRows(): HTMLElement[] {
+    const rows: HTMLElement[] = [];
+    const walk = (nodes: TangentNode[], depth: number): void => {
+      for (const node of nodes) {
+        rows.push(this.itemFor(node.tangent, depth));
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(buildTangentTree(this.tangents), 0);
+    return rows;
   }
 
   private actionsBar(): HTMLDivElement {
@@ -81,13 +98,14 @@ export class Launcher {
     return hint;
   }
 
-  private itemFor(tangent: Tangent): HTMLDivElement {
+  private itemFor(tangent: Tangent, depth: number): HTMLDivElement {
     const row = document.createElement('div');
     row.className = 'st-launcher-row';
+    if (depth > 0) row.style.paddingLeft = `${depth * 14}px`;
 
     const open = document.createElement('button');
     open.className = 'st-list-item';
-    open.textContent = tangent.title || 'Untitled tangent';
+    open.textContent = `${depth > 0 ? '↳ ' : ''}${tangent.title || 'Untitled tangent'}`;
     open.addEventListener('click', () => {
       this.hide();
       this.onOpen(tangent.id);
@@ -97,7 +115,7 @@ export class Launcher {
     del.className = 'st-icon st-row-del';
     del.title = 'Delete tangent';
     del.setAttribute('aria-label', 'Delete tangent');
-    del.textContent = '🗑';
+    del.innerHTML = TRASH_ICON;
     del.addEventListener('click', () => this.onDelete(tangent.id));
 
     row.append(open, del);
@@ -105,7 +123,9 @@ export class Launcher {
   }
 
   private toggle(): void {
-    this.panel.style.display = this.panel.style.display === 'none' ? 'block' : 'none';
+    const show = this.panel.style.display === 'none';
+    if (show) this.panel.dataset.stTheme = isDark() ? 'dark' : 'light';
+    this.panel.style.display = show ? 'block' : 'none';
   }
 
   private hide(): void {

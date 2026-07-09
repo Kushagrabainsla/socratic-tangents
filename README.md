@@ -40,7 +40,9 @@ when you scroll away, so a tangent is always one click from where it belongs.
 **[Add to Chrome →](https://chromewebstore.google.com/detail/afkfidnckdglmamjpnofcpdgfddfneji)**
 
 Available on the Chrome Web Store. Click **Add to Chrome**, then open ChatGPT or Claude and start
-branching. Edge and Firefox listings are on the way.
+branching. The same listing installs on **Brave, Opera, Vivaldi, Arc**, and other Chromium browsers.
+Dedicated **Edge** and **Firefox** listings are on the way (the build and release pipeline already
+target both).
 
 ### From source
 
@@ -58,7 +60,9 @@ Or build and load it manually. Run `npm run build`, open `chrome://extensions`, 
 2. Select any text in a reply and click **Tangent** (or press **Alt+T**).
 3. Ask your follow-up in the bubble. The answer lands inline, and your chat is untouched. Drag the
    bubble's bottom-right corner to resize it.
-4. Use the tangents list (bottom-left) to jump back to any tangent, or to export and import them as
+4. Go deeper: tap a quick-action chip (**Simpler**, **Example**, **Why?**) or a suggested follow-up,
+   or select text in the tangent's own answer to branch a nested tangent. Use **‹** to step back.
+5. Use the tangents tree (bottom-left) to jump to any tangent, or to export and import them as
    Markdown or JSON.
 
 ## Status

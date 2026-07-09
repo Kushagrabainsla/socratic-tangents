@@ -75,4 +75,24 @@ describe('parseTangents', () => {
     const [parsed] = parseTangents(json);
     expect(parsed?.hiddenTurnIds).toEqual(['a', 'b']);
   });
+
+  it('preserves rich assistant html and drops non-string html', () => {
+    const json = JSON.stringify([
+      {
+        id: 't1',
+        conversationId: 'c1',
+        messages: [
+          { role: 'assistant', text: 'code', html: '<pre><code>x</code></pre>' },
+          { role: 'user', text: 'q', html: 42 },
+        ],
+      },
+    ]);
+    const [parsed] = parseTangents(json);
+    expect(parsed?.messages[0]).toEqual({
+      role: 'assistant',
+      text: 'code',
+      html: '<pre><code>x</code></pre>',
+    });
+    expect(parsed?.messages[1]).toEqual({ role: 'user', text: 'q' });
+  });
 });

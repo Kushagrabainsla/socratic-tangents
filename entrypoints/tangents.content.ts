@@ -6,7 +6,8 @@ import { injectStyles } from '@/lib/tangent/styles';
 // provider is an adapter in lib/adapters/. This entrypoint and the engine/UI never change.
 export default defineContentScript({
   matches: PROVIDER_MATCH_PATTERNS,
-  world: 'ISOLATED',
+  // Content scripts run in the isolated world by default, so we don't set `world`: omitting it keeps
+  // the Firefox MV2 manifest free of an MV3-only key (cleaner AMO lint) with no behaviour change.
   main() {
     const adapter = getAdapter(location.host);
     if (!adapter) return;

@@ -63,4 +63,18 @@ describe('resolveAnchor', () => {
     const unrelated = assistant('m2', 'completely different content');
     expect(resolveAnchor(fakeAdapter([unrelated]), anchor)).toBeNull();
   });
+
+  it('ignores nested extension UI (a marker badge) when hashing and matching', () => {
+    const clean = assistant('m1', 'the original body');
+    // a quoted text that is not a substring, so only the text hash can re-anchor it
+    const anchor = createAnchor(fakeAdapter([clean]), clean, 'ZZZ-not-a-substring');
+
+    const withMarker = assistant('m2', 'the original body');
+    const marker = document.createElement('button');
+    marker.dataset.stUi = '1';
+    marker.textContent = '↳ 3';
+    withMarker.appendChild(marker);
+
+    expect(resolveAnchor(fakeAdapter([withMarker]), anchor)).toBe(withMarker);
+  });
 });

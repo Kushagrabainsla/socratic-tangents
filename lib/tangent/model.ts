@@ -3,6 +3,12 @@
 export interface TangentMessage {
   role: 'user' | 'assistant';
   text: string;
+  /** Sanitized HTML of an assistant answer, so rich formatting (code, lists, tables) survives a
+   *  reload. Optional: user messages and older tangents carry only `text`. */
+  html?: string;
+  /** Suggested follow-up questions offered after an assistant answer (persisted so they survive a
+   *  reload without another model call). */
+  suggestions?: string[];
 }
 
 /** How we find the tangented passage again after a reload or DOM change. */
@@ -15,6 +21,9 @@ export interface Anchor {
 export interface Tangent {
   id: string;
   conversationId: string;
+  /** Parent tangent id when this is a nested tangent (branched off another tangent's answer);
+   *  undefined for a root tangent branched directly off a host message. */
+  parentId?: string;
   anchor: Anchor;
   messages: TangentMessage[];
   /** Provider message ids of the hidden turns this tangent sent, so we can re-hide them on reload. */

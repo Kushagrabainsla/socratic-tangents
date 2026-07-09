@@ -1,10 +1,11 @@
 import type { LLMAdapter, SelectorReport } from '../adapters/types';
 import { createAnchor, resolveAnchor } from './anchor';
-import { openBubble } from './bubble';
+import { openBubble, reconcileBubbles, closeAllBubbles } from './bubble';
 import { hideTurns } from './engine';
 import { Launcher } from './launcher';
 import { clearMarkers, ensureMarkers, renderMarkers } from './markers';
 import { newId, type Tangent } from './model';
+import { descendantIds, pathTo } from './tree';
 import { onUrlChange } from './nav';
 import { showNotice } from './notice';
 import { initSelection } from './selection';
@@ -79,8 +80,13 @@ export class TangentManager {
     return this.tangents.filter((t) => t.messages.length > 0);
   }
 
+  /** Root tangents (anchored to a host message) that have content — only these get page markers. */
+  private get visibleRoots(): Tangent[] {
+    return this.visibleTangents.filter((t) => !t.parentId);
+  }
+
   private renderAll(): void {
-    renderMarkers(this.adapter, this.visibleTangents, (id) => this.reopen(id));
+    renderMarkers(this.adapter, this.visibleRoots, (id) => this.reopen(id));
     this.launcher.render(this.visibleTangents);
   }
 
@@ -93,7 +99,7 @@ export class TangentManager {
         if (scheduled) return;
         scheduled = window.setTimeout(() => {
           scheduled = 0;
-          ensureMarkers(this.adapter, this.visibleTangents, (id) => this.reopen(id));
+          ensureMarkers(this.adapter, this.visibleRoots, (id) => this.reopen(id));
         }, REATTACH_THROTTLE_MS);
       },
       true,
@@ -153,46 +159,63 @@ export class TangentManager {
   }
 
   private async delete(id: string): Promise<void> {
-    await removeTangent(id);
-    this.tangents = this.tangents.filter((t) => t.id !== id);
-    document.querySelector(`.st-card[data-tangent-id="${id}"]`)?.remove();
+    const removed = new Set(descendantIds(this.tangents, id));
+    this.tangents = this.tangents.filter((t) => !removed.has(t.id));
+    for (const removedId of removed) await removeTangent(removedId);
+    reconcileBubbles(new Set(this.tangents.map((t) => t.id)));
     this.syncHideObserver();
     this.renderAll();
   }
 
   private create(passage: string, msgEl: HTMLElement, rect: DOMRect): void {
+    const tangent = this.newTangent(createAnchor(this.adapter, msgEl, passage));
+    this.tangents.push(tangent);
+    this.show([tangent], msgEl, rect);
+  }
+
+  /** Create (but don't yet persist) a child tangent branched off `parentId`'s answer. */
+  private createChild(parentId: string, passage: string): Tangent | null {
+    if (!this.tangents.some((t) => t.id === parentId)) return null;
+    const child = this.newTangent({ messageId: '', quotedText: passage, textHash: '' }, parentId);
+    this.tangents.push(child);
+    return child;
+  }
+
+  private newTangent(anchor: Tangent['anchor'], parentId?: string): Tangent {
     const now = Date.now();
-    const tangent: Tangent = {
+    return {
       id: newId(),
-      conversationId: this.conversationId,
-      anchor: createAnchor(this.adapter, msgEl, passage),
+      conversationId: this.adapter.conversationId() || this.conversationId,
+      parentId,
+      anchor,
       messages: [],
       hiddenTurnIds: [],
       title: '',
       createdAt: now,
       updatedAt: now,
     };
-    this.tangents.push(tangent);
-    this.show(tangent, msgEl, rect);
   }
 
+  /** Reopen a tangent by walking to its root, anchoring there, and drilling down to it. */
   private reopen(id: string): void {
-    const tangent = this.tangents.find((t) => t.id === id);
-    if (!tangent) return;
-    const msgEl = resolveAnchor(this.adapter, tangent.anchor);
+    const path = pathTo(this.tangents, id);
+    const root = path[0];
+    if (!root) return;
+    const msgEl = resolveAnchor(this.adapter, root.anchor);
     if (!msgEl) return; // passage no longer on the page; left as a no-op for now
     msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    this.show(tangent, msgEl, msgEl.getBoundingClientRect());
+    this.show(path, msgEl, msgEl.getBoundingClientRect());
   }
 
-  private show(tangent: Tangent, msgEl: HTMLElement, rect: DOMRect): void {
+  private show(stack: Tangent[], msgEl: HTMLElement, rect: DOMRect): void {
     openBubble({
       adapter: this.adapter,
-      tangent,
+      stack,
       msgEl,
       rect,
       onUpdate: (t) => void this.persist(t),
       onDelete: (id) => void this.delete(id),
+      onCreateChild: (parentId, passage) => this.createChild(parentId, passage),
     });
   }
 
@@ -226,6 +249,7 @@ export class TangentManager {
     const current = this.adapter.conversationId();
     if (current === this.conversationId) return;
     this.conversationId = current;
+    closeAllBubbles();
     clearMarkers();
     await this.reload();
   }

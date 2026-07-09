@@ -51,7 +51,9 @@ function toTangent(raw: unknown): Tangent | null {
   if (!id || !conversationId) return null;
 
   const anchorSource = isRecord(raw.anchor) ? raw.anchor : {};
-  const messages = Array.isArray(raw.messages) ? raw.messages.filter(isMessage) : [];
+  const messages = Array.isArray(raw.messages)
+    ? raw.messages.map(toMessage).filter((message): message is TangentMessage => message !== null)
+    : [];
   const now = Date.now();
 
   return {
@@ -76,10 +78,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isMessage(value: unknown): value is TangentMessage {
-  return (
-    isRecord(value) && (value.role === 'user' || value.role === 'assistant') && typeof value.text === 'string'
-  );
+function toMessage(value: unknown): TangentMessage | null {
+  if (!isRecord(value)) return null;
+  if (value.role !== 'user' && value.role !== 'assistant') return null;
+  if (typeof value.text !== 'string') return null;
+  const message: TangentMessage = { role: value.role, text: value.text };
+  if (typeof value.html === 'string') message.html = value.html;
+  return message;
 }
 
 function asString(value: unknown): string {

@@ -8,7 +8,7 @@ export function createAnchor(adapter: LLMAdapter, msgEl: HTMLElement, quotedText
   return {
     messageId: adapter.messageId(msgEl),
     quotedText,
-    textHash: hashText(msgEl.textContent ?? ''),
+    textHash: hashText(messageText(msgEl)),
   };
 }
 
@@ -19,7 +19,17 @@ export function resolveAnchor(adapter: LLMAdapter, anchor: Anchor): HTMLElement 
 }
 
 function matchesByText(el: HTMLElement, anchor: Anchor): boolean {
-  const text = el.textContent ?? '';
+  const text = messageText(el);
   if (hashText(text) === anchor.textHash) return true;
   return anchor.quotedText.length > 0 && text.includes(anchor.quotedText);
+}
+
+/** The message's own text, excluding any extension UI (e.g. the tangent marker badge) nested inside
+ *  it. Without this, appending a marker would change the message's textContent and break re-anchoring
+ *  on providers that have no stable message id (Claude). */
+function messageText(el: HTMLElement): string {
+  if (!el.querySelector('[data-st-ui]')) return el.textContent ?? '';
+  const clone = el.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('[data-st-ui]').forEach((n) => n.remove());
+  return clone.textContent ?? '';
 }

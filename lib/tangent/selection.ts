@@ -26,6 +26,7 @@ function selectedPassage(adapter: LLMAdapter): Selected | null {
 export function initSelection(adapter: LLMAdapter, onCreate: CreateTangent): void {
   const btn = document.createElement('button');
   btn.className = 'st-tangent-btn';
+  btn.dataset.stUi = '1';
   btn.textContent = '↳ Tangent';
   btn.title = 'Start a tangent (Alt+T)';
   btn.setAttribute('aria-label', 'Start a tangent from the selected text');

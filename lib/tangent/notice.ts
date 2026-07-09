@@ -59,6 +59,7 @@ function host(): HTMLElement {
   const created = document.createElement('div');
   created.id = 'st-notice-host';
   created.className = 'st-notice-host';
+  created.dataset.stUi = '1';
   document.body.appendChild(created);
   return created;
 }

@@ -18,9 +18,24 @@ lib/
     claude.ts              #   ClaudeAdapter  (selectors only)
     registry.ts            #   the adapter list + host → adapter, + manifest match patterns
   tangent/                 # provider-agnostic core (never needs to change per provider)
+    manager.ts             #   controller: loads/persists tangents, wires selection, nav, health
     selection.ts           #   "↳ Tangent" affordance on text selection
-    bubble.ts              #   the floating, passage-tracking thought-bubble UI
+    bubble.ts              #   the floating thought-bubble UI: a drill-down stack of nested tangents
+    placement.ts           #   pure rule for follow / pinned / minimized each frame
+    dock.ts                #   stacks minimized pills so they never overlap
     engine.ts              #   ask orchestration: send → hide turns → await answer → clean
+    followups.ts           #   parse suggested follow-ups piggybacked on the answer
+    anchor.ts              #   turn a selection into a durable anchor, and resolve it later
+    markers.ts             #   per-message badges that reopen a message's tangents
+    launcher.ts            #   floating tree of the conversation's tangents (+ export/import)
+    tree.ts                #   the tangent forest: roots, paths, descendants (parent/child)
+    store.ts               #   local persistence in extension storage
+    model.ts               #   the Tangent data model and small pure helpers
+    export.ts / import.ts  #   Markdown/JSON export and validated re-import
+    sanitize.ts            #   allowlist HTML sanitizer for persisted/imported answers
+    nav.ts                 #   detect SPA conversation changes so tangents re-anchor
+    notice.ts              #   dismissible toast notices (warnings, hints, results)
+    icons.ts               #   inline monochrome SVG icons
     styles.ts              #   injected CSS (theme-aware)
     theme.ts               #   dark/light detection from the host
     dom.ts                 #   tiny shared helpers
@@ -35,6 +50,10 @@ lib/
 3. **Engine** ([engine.ts](../lib/tangent/engine.ts)) on ask: snapshots message ids → `adapter.send()`
    → hides any new turns from the thread → waits for the new answer to finish → returns
    `adapter.cleanAnswer()`. The bubble renders that node and scrolls back to the passage.
+4. **Nesting** ([bubble.ts](../lib/tangent/bubble.ts), [tree.ts](../lib/tangent/tree.ts)) — selecting
+   text inside a tangent's answer branches a _child_ tangent (`parentId`). One card holds the whole
+   drill path: the visible top drives the thread, a breadcrumb pops back, and the launcher renders the
+   forest as a tree. Quick-action chips and parsed follow-up suggestions make going deeper one tap.
 
 The core talks only to the [`LLMAdapter`](../lib/adapters/types.ts) interface, so it is completely
 provider-agnostic. Design notes: single responsibility (adapter = DOM knowledge, engine =

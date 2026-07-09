@@ -1,5 +1,6 @@
 import type { LLMAdapter } from '../adapters/types';
 import { sleep } from './dom';
+import { FOLLOWUP_REQUEST } from './followups';
 
 const ANSWER_TIMEOUT_MS = 150_000;
 const STABLE_MS = 700;
@@ -21,8 +22,25 @@ export interface TangentAnswer {
  * Ask a tangent question and return the clean answer node. The send goes through the provider's
  * own composer (so it handles anti-abuse); the resulting turns are hidden from the main thread so
  * it stays visually untouched. Provider-agnostic: works for any LLMAdapter.
+ *
+ * Sends are serialized globally: the page has a single composer and model, so two overlapping asks
+ * would snapshot each other's turns and one bubble could capture the other's answer. Each ask waits
+ * for the previous one to settle.
  */
-export async function askTangent(
+let inFlight: Promise<unknown> = Promise.resolve();
+
+export function askTangent(
+  adapter: LLMAdapter,
+  passage: string,
+  question: string,
+  onProgress?: (text: string) => void,
+): Promise<TangentAnswer> {
+  const result = inFlight.catch(() => undefined).then(() => runAsk(adapter, passage, question, onProgress));
+  inFlight = result.catch(() => undefined);
+  return result;
+}
+
+async function runAsk(
   adapter: LLMAdapter,
   passage: string,
   question: string,
@@ -31,7 +49,7 @@ export async function askTangent(
   const before = currentMessageIds(adapter);
   const hideObserver = hideNewTurns(adapter, before);
   try {
-    await adapter.send(composePrompt(passage, question));
+    await adapter.send(`${composePrompt(passage, question)}\n\n${FOLLOWUP_REQUEST}`);
     const answerNode = await waitForAnswer(adapter, before, onProgress);
     return { node: adapter.cleanAnswer(answerNode), turnIds: newTurnIds(adapter, before) };
   } finally {
@@ -59,15 +77,27 @@ export function hideTurns(adapter: LLMAdapter, ids: ReadonlySet<string>): void {
   }
 }
 
-/** Hide every turn added after `before`, so a sent tangent leaves no trace in the thread. */
+/** Hide every turn added after `before`, so a sent tangent leaves no trace in the thread. Streaming
+ *  pages mutate constantly, so the observer coalesces to one pass per frame instead of per mutation,
+ *  and skips turns already hidden. */
 function hideNewTurns(adapter: LLMAdapter, before: Set<string>): MutationObserver {
   const hide = () => {
     for (const el of adapter.messageElements()) {
-      if (!before.has(adapter.messageId(el))) adapter.turnWrapper(el).style.display = 'none';
+      if (before.has(adapter.messageId(el))) continue;
+      const wrapper = adapter.turnWrapper(el);
+      if (wrapper.style.display !== 'none') wrapper.style.display = 'none';
     }
   };
   hide();
-  const observer = new MutationObserver(hide);
+  let scheduled = false;
+  const observer = new MutationObserver(() => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      hide();
+    });
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   return observer;
 }

@@ -30,20 +30,23 @@ const CSS = `
 .st-card.st-min{right:16px;bottom:96px;width:auto;max-width:220px;padding:8px 14px;border-radius:20px;
   cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .st-card.st-min::before{display:none}
-.st-card.st-min .st-card-close,.st-card.st-min .st-quote,.st-card.st-min .st-thread,
-.st-card.st-min .st-composer{display:none}
+.st-card.st-min .st-card-actions,.st-card.st-min .st-quote,.st-card.st-min .st-thread,
+.st-card.st-min .st-quickbar,.st-card.st-min .st-composer{display:none}
 .st-card.st-min .st-card-head{margin:0}
+.st-card.st-min .st-card-label{opacity:.9;max-width:180px}
 
 .st-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:move;user-select:none}
-.st-card-label{font-size:12px;font-weight:600;opacity:.6}
-.st-card-actions{display:flex;gap:2px}
+.st-card-label{font-size:12px;font-weight:600;opacity:.6;flex:1 1 auto;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.st-card-actions{display:flex;gap:2px;flex:0 0 auto}
+.st-back{font-size:17px;line-height:1;padding:2px 6px}
 .st-icon{background:none;border:none;cursor:pointer;color:inherit;opacity:.5;font-size:13px;line-height:1;padding:3px 5px;border-radius:6px}
-.st-icon:hover{opacity:1;background:color-mix(in srgb, currentColor 12%, transparent)}
+.st-icon:hover{opacity:1;background:rgba(128,128,128,.12);background:color-mix(in srgb, currentColor 12%, transparent)}
 .st-icon:disabled{opacity:.2;cursor:default}
 .st-send.st-stop{background:#d33!important;color:#fff!important}
 .st-answer-actions{margin-top:6px}
 .st-mini{border:none;background:none;color:inherit;opacity:.5;cursor:pointer;font:12px ui-sans-serif,system-ui,sans-serif;padding:2px 6px;border-radius:6px}
-.st-mini:hover{opacity:1;background:color-mix(in srgb, currentColor 12%, transparent)}
+.st-mini:hover{opacity:1;background:rgba(128,128,128,.12);background:color-mix(in srgb, currentColor 12%, transparent)}
 .st-launcher-row{display:flex;align-items:center;gap:4px}
 .st-launcher-row .st-list-item{flex:1 1 auto}
 .st-quote{border-left:2px solid currentColor;opacity:.55;padding-left:10px;margin-bottom:12px;
@@ -56,6 +59,16 @@ const CSS = `
 .st-card[data-st-theme="dark"] .st-user{background:#3a3a3a}
 .st-assistant{align-self:stretch}
 .st-thinking{opacity:.5}
+/* quick-action + suggested-follow-up chips */
+.st-quickbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;flex:0 0 auto}
+.st-chip{border:1px solid rgba(128,128,128,.22);border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:14px;
+  padding:3px 10px;font:500 12px ui-sans-serif,system-ui,sans-serif;cursor:pointer;
+  background:transparent;color:inherit;opacity:.85;max-width:100%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.st-chip:hover{opacity:1;background:rgba(128,128,128,.1);background:color-mix(in srgb, currentColor 10%, transparent)}
+.st-chip:disabled{opacity:.35;cursor:default}
+.st-followups{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.st-followup{font-size:11px;padding:2px 9px}
 .st-composer{display:flex;align-items:flex-end;gap:8px;flex:0 0 auto}
 .st-input{flex:1;resize:none;border-radius:18px;padding:9px 13px;font:inherit;color:inherit;
   background:transparent;max-height:140px}
@@ -73,7 +86,7 @@ const CSS = `
 .st-card.st-min .st-resize{display:none}
 
 /* highlight on the message a tangent is anchored to */
-.st-anchored{outline:2px solid color-mix(in srgb, #8b7bff 55%, transparent);outline-offset:6px;border-radius:8px}
+.st-anchored{outline:2px solid rgba(139,123,255,.55);outline:2px solid color-mix(in srgb, #8b7bff 55%, transparent);outline-offset:6px;border-radius:8px}
 
 /* per-message marker badge */
 .st-marker{position:absolute;top:6px;right:6px;z-index:6;border:none;border-radius:12px;
@@ -90,20 +103,22 @@ const CSS = `
 .st-marker-menu{position:absolute;top:30px;right:6px}
 .st-launcher-panel{position:fixed;left:20px;bottom:60px}
 .st-marker-menu,.st-launcher-panel{z-index:2147483645;min-width:200px;max-height:300px;overflow:auto;
-  padding:6px;border-radius:12px;background:#fff;color:#111;border:1px solid #e5e5e5;
-  box-shadow:0 12px 40px rgba(0,0,0,.3)}
+  padding:6px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);
+  background:#fff;color:#0d0d0d;border:1px solid #e5e5e5}
+.st-marker-menu[data-st-theme="dark"],.st-launcher-panel[data-st-theme="dark"]{
+  background:#2a2a2a;color:#ececec;border-color:#3a3a3a}
 .st-list-item{display:block;width:100%;text-align:left;border:none;background:none;color:inherit;
   padding:7px 9px;border-radius:7px;cursor:pointer;font:13px ui-sans-serif,system-ui,sans-serif;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.st-list-item:hover{background:color-mix(in srgb, currentColor 12%, transparent)}
+.st-list-item:hover{background:rgba(128,128,128,.12);background:color-mix(in srgb, currentColor 12%, transparent)}
 
 /* export and import actions at the top of the launcher panel */
 .st-launcher-actions{display:flex;gap:6px;padding:2px 2px 8px;margin-bottom:4px;
-  border-bottom:1px solid color-mix(in srgb, currentColor 14%, transparent)}
+  border-bottom:1px solid rgba(128,128,128,.14);border-bottom:1px solid color-mix(in srgb, currentColor 14%, transparent)}
 .st-export{flex:1;border:none;border-radius:7px;padding:6px 8px;cursor:pointer;
   font:600 12px ui-sans-serif,system-ui,sans-serif;color:inherit;
-  background:color-mix(in srgb, currentColor 10%, transparent)}
-.st-export:hover{background:color-mix(in srgb, currentColor 18%, transparent)}
+  background:rgba(128,128,128,.1);background:color-mix(in srgb, currentColor 10%, transparent)}
+.st-export:hover{background:rgba(128,128,128,.18);background:color-mix(in srgb, currentColor 18%, transparent)}
 .st-launcher-empty{padding:8px 9px;opacity:.6;font:13px ui-sans-serif,system-ui,sans-serif;line-height:1.45}
 
 /* dismissible toast notices (broken-selector warning, import result, first-run hint) */
@@ -120,15 +135,20 @@ const CSS = `
   font:600 12px ui-sans-serif,system-ui,sans-serif;background:#7c5cff}
 .st-notice-close{flex:0 0 auto;border:none;background:none;color:inherit;opacity:.5;cursor:pointer;
   font-size:13px;line-height:1;padding:2px 4px;border-radius:6px}
-.st-notice-close:hover{opacity:1;background:color-mix(in srgb, currentColor 12%, transparent)}
+.st-notice-close:hover{opacity:1;background:rgba(128,128,128,.12);background:color-mix(in srgb, currentColor 12%, transparent)}
+
+/* inline svg icons: monochrome, inherit color, and let clicks fall through to the button */
+.st-svg{display:block;pointer-events:none}
+
+/* smooth, native-feeling hover and press feedback on our controls */
+.st-icon,.st-mini,.st-send,.st-marker,.st-launcher,.st-list-item,.st-export,.st-tangent-btn,
+.st-notice-action,.st-notice-close{transition:background .15s ease,opacity .15s ease,transform .1s ease}
+.st-icon:active,.st-mini:active,.st-send:not(:disabled):active,.st-marker:active,.st-launcher:active,
+.st-export:active,.st-tangent-btn:active,.st-notice-action:active{transform:scale(.94)}
 
 /* visible keyboard focus on every interactive control */
 .st-tangent-btn:focus-visible,.st-icon:focus-visible,.st-send:focus-visible,.st-mini:focus-visible,
 .st-marker:focus-visible,.st-launcher:focus-visible,.st-list-item:focus-visible,.st-input:focus-visible,
 .st-export:focus-visible,.st-notice-action:focus-visible,.st-notice-close:focus-visible{
   outline:2px solid #7c5cff;outline-offset:2px}
-
-@media (prefers-color-scheme: dark){
-  .st-marker-menu,.st-launcher-panel{background:#2a2a2a;color:#ececec;border-color:#3a3a3a}
-}
 `;

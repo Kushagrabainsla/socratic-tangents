@@ -32,6 +32,13 @@ describe('pick', () => {
     const root = document.createElement('div');
     expect(pick(root, ['.nope'])).toBeNull();
   });
+
+  it("ignores the extension's own injected UI (data-st-ui)", () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div data-st-ui="1"><button class="x">ours</button></div><button class="x">page</button>';
+    expect(pick(root, ['.x'])?.textContent).toBe('page');
+  });
 });
 
 describe('sleep', () => {

@@ -65,6 +65,19 @@ Create AMO API credentials (JWT issuer + secret).
 
 > Step-by-step credential guides for all three: <https://wxt.dev/guide/essentials/publishing.html>
 
+### Safari (a separate effort, not wired into the pipeline)
+
+Safari uses WebKit and does not accept a WebExtension zip, so shipping there is a one-time conversion
+rather than just adding secrets:
+
+1. Convert the built extension with Xcode: `xcrun safari-web-extension-converter .output/chrome-mv3`.
+2. Open the generated Xcode project, which wraps the extension in a small macOS/iOS app.
+3. Sign it with a paid **Apple Developer** account ($99/yr) and submit the app to the **App Store**
+   (Safari extensions ship inside an app and go through App Store review).
+
+Safari's WebExtension API has gaps, so test the converted build before shipping. Because this is a
+different toolchain (Xcode, not `wxt submit`), it is intentionally left out of `release.yml`.
+
 ## Without a store (free, higher friction)
 
 For Chrome users before/without the $5: link the **GitHub Release** zip and have them unzip and use
